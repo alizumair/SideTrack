@@ -87,8 +87,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
         let current = CoreAudioBridge.shared.getVolume()
-        // Responsive gain: 1.25x matches finger travel velocity to brightness speed
-        let multiplier: Float = isPrecise ? 0.35 : 1.25
+        let multiplier: Float = isPrecise ? 0.35 : 0.8
         let updated = max(0.0, min(1.0, current + delta * multiplier))
         CoreAudioBridge.shared.setVolume(updated)
         
