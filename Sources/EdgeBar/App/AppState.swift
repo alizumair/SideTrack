@@ -184,18 +184,25 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
             HapticFeedbackBridge.shared.alignment()
         }
         
-        let url = URL(fileURLWithPath: "/System/Applications/Utilities/Screenshot.app")
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = true
-        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
-            if error != nil {
-                let task = Process()
-                task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                task.arguments = ["-a", "Screenshot"]
-                try? task.run()
-            }
-            DispatchQueue.main.async {
-                EdgeBarHUDOverlay.shared.show(.media(message: "Screen Recording", icon: "record.circle"))
+        DispatchQueue.global(qos: .userInitiated).async {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            // -i: interactive
+            // -U: show interactive toolbar
+            // -Jvideo: explicitly pre-selects video screen recording mode
+            // -p: uses default destination preferences (e.g. Documents/Desktop)
+            task.arguments = ["-i", "-U", "-Jvideo", "-p"]
+            do {
+                try task.run()
+                DispatchQueue.main.async {
+                    EdgeBarHUDOverlay.shared.show(.media(message: "Screen Recording", icon: "record.circle"))
+                }
+            } catch {
+                NSLog("[EdgeBar] Failed to run screencapture with -Jvideo: \(error)")
+                let url = URL(fileURLWithPath: "/System/Applications/Utilities/Screenshot.app")
+                let config = NSWorkspace.OpenConfiguration()
+                config.activates = true
+                NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in }
             }
         }
     }
