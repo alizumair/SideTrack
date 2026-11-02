@@ -17,11 +17,13 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
     
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.isVisible = true
         
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "EdgeBar")
+            let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "SideTrack")
             image?.isTemplate = true
             button.image = image
+            button.toolTip = "SideTrack (EdgeBar)"
         }
         
         buildMenu()
@@ -115,25 +117,29 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
     }
     
     @objc public func openSettings() {
-        if settingsWindow == nil {
-            let view = SettingsView(settingsStore: appState.settingsStore)
-            let hosting = NSHostingView(rootView: view)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if self.settingsWindow == nil {
+                let view = SettingsView(settingsStore: self.appState.settingsStore)
+                let hosting = NSHostingView(rootView: view)
+                
+                let window = NSWindow(
+                    contentRect: NSRect(x: 0, y: 0, width: 620, height: 520),
+                    styleMask: [.titled, .closable, .miniaturizable],
+                    backing: .buffered,
+                    defer: false
+                )
+                window.title = "SideTrack Settings"
+                window.contentView = hosting
+                window.center()
+                window.isReleasedWhenClosed = false
+                self.settingsWindow = window
+            }
             
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 620, height: 520),
-                styleMask: [.titled, .closable, .miniaturizable],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "EdgeBar Settings"
-            window.contentView = hosting
-            window.center()
-            window.isReleasedWhenClosed = false
-            self.settingsWindow = window
+            NSApp.activate(ignoringOtherApps: true)
+            self.settingsWindow?.makeKeyAndOrderFront(nil)
+            self.settingsWindow?.orderFrontRegardless()
         }
-        
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.makeKeyAndOrderFront(nil)
     }
     
     @objc public func openPermissions() {

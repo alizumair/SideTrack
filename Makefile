@@ -5,7 +5,7 @@ CONTENTS_DIR = $(APP_BUNDLE)/Contents
 MACOS_DIR = $(CONTENTS_DIR)/MacOS
 RESOURCES_DIR = $(CONTENTS_DIR)/Resources
 
-.PHONY: all app run test clean build
+.PHONY: all app run test clean build settings install
 
 all: app
 
@@ -28,6 +28,16 @@ app: build
 run: app
 	@echo "==> Launching $(APP_NAME)..."
 	@open $(APP_BUNDLE)
+
+settings: app
+	@echo "==> Opening $(APP_NAME) Settings..."
+	@open $(APP_BUNDLE) --args --settings
+
+install: app
+	@echo "==> Installing SideTrack to /Applications/SideTrack.app..."
+	@rm -rf /Applications/SideTrack.app
+	@cp -R $(APP_BUNDLE) /Applications/SideTrack.app
+	@echo "==> SideTrack installed! Available in Launchpad and Spotlight."
 
 test:
 	@echo "==> Running EdgeBar gesture state machine unit tests..."
