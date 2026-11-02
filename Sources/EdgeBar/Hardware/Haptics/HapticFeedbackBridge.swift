@@ -1,6 +1,8 @@
 import Foundation
 import AppKit
 
+public typealias HapticEngine = HapticFeedbackBridge
+
 public final class HapticFeedbackBridge {
     public static let shared = HapticFeedbackBridge()
     

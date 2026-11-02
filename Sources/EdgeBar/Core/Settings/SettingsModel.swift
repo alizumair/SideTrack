@@ -50,6 +50,12 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     public var doubleTapMaxInterval: Double = 0.35
     public var maxTapMovementThreshold: Double = 0.015 // Tight tap boundary (~1.5mm)
     
+    // Corner Hold Macros
+    public var cornerHoldsEnabled: Bool = true
+    public var cornerHoldFraction: Double = 0.15           // 15% outer corner zones
+    public var screenshotHoldDuration: Double = 1.5        // Left corners (Top-Left / Bottom-Left)
+    public var screenRecordingHoldDuration: Double = 3.0    // Bottom-Right corner
+    
     // General
     public var launchAtLogin: Bool = false
     

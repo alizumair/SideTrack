@@ -9,10 +9,20 @@ public protocol SlideEngineDelegate: AnyObject {
     func slideEngineDidToggleMute()
     func slideEngineSlideStateChanged(isSliding: Bool)
     func slideEngineHapticTick()
+    func slideEngineDidStartCornerHold(corner: CornerType)
+    func slideEngineDidTriggerScreenshot()
+    func slideEngineDidTriggerScreenRecording()
 }
 
-public final class SlideEngine {
+public extension SlideEngineDelegate {
+    func slideEngineDidStartCornerHold(corner: CornerType) {}
+    func slideEngineDidTriggerScreenshot() {}
+    func slideEngineDidTriggerScreenRecording() {}
+}
+
+public final class SlideEngine: CornerHoldManagerDelegate {
     public weak var delegate: SlideEngineDelegate?
+    public let cornerHoldManager = CornerHoldManager()
     
     public var settings: SettingsModel {
         didSet {
@@ -37,6 +47,7 @@ public final class SlideEngine {
             edgeHeight: Float(settings.edgeHeightFraction),
             cornerSize: Float(settings.cornerZoneFraction)
         )
+        self.cornerHoldManager.delegate = self
     }
     
     private func updateClassifier() {
@@ -52,6 +63,7 @@ public final class SlideEngine {
             if isSlidingActive {
                 endSlide(cancelled: true)
             }
+            cornerHoldManager.cancelHold()
             return
         }
         
@@ -63,6 +75,7 @@ public final class SlideEngine {
         // When 2 or more fingers are on the pad, yield immediately and completely to macOS
         // for native scrolling, pinch-to-zoom, and mission control.
         if contacts.count > 1 {
+            cornerHoldManager.cancelHold()
             if isSlidingActive || phase != .idle {
                 endSlide(cancelled: true)
                 phase = .cancelled
@@ -72,6 +85,7 @@ public final class SlideEngine {
         
         // 2. Pad is empty
         if contacts.isEmpty {
+            cornerHoldManager.cancelHold()
             if isSlidingActive {
                 endSlide(cancelled: false)
             }
@@ -89,12 +103,20 @@ public final class SlideEngine {
             if contact.state.isTerminating {
                 phase = .idle
             }
+            cornerHoldManager.cancelHold()
             return
         }
         
         // If this touch ID was flagged as ignored for this contact session, skip it
         if ignoredTouchIDs.contains(contact.id) {
             return
+        }
+        
+        // Corner hold detection:
+        if isSlidingActive {
+            cornerHoldManager.cancelHold()
+        } else {
+            _ = cornerHoldManager.processFrame(contacts: contacts, settings: settings)
         }
         
         // Process touch lifecycle
@@ -140,6 +162,11 @@ public final class SlideEngine {
                     }
                 }
                 phase = .idle
+                return
+            }
+            
+            // While actively holding stationary in a corner zone, suppress transitioning into a slide
+            if cornerHoldManager.isHolding {
                 return
             }
             
@@ -246,6 +273,7 @@ public final class SlideEngine {
     }
     
     private func startSlide() {
+        cornerHoldManager.cancelHold()
         isSlidingActive = true
         delegate?.slideEngineSlideStateChanged(isSliding: true)
     }
@@ -331,6 +359,24 @@ public final class SlideEngine {
             }
         default:
             break
+        }
+    }
+    
+    // MARK: - CornerHoldManagerDelegate
+    public func cornerHoldDidStart(corner: CornerType) {
+        delegate?.slideEngineDidStartCornerHold(corner: corner)
+    }
+    
+    public func cornerHoldDidTrigger(action: CornerHoldAction) {
+        if let touchID = cornerHoldManager.activeTouchID {
+            ignoredTouchIDs.insert(touchID)
+        }
+        phase = .idle
+        switch action {
+        case .screenshot:
+            delegate?.slideEngineDidTriggerScreenshot()
+        case .screenRecording:
+            delegate?.slideEngineDidTriggerScreenRecording()
         }
     }
 }

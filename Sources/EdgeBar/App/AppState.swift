@@ -150,4 +150,53 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
             HapticFeedbackBridge.shared.tick()
         }
     }
+    
+    // MARK: - Corner Hold Macros
+    public func slideEngineDidStartCornerHold(corner: CornerType) {
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.tick()
+        }
+    }
+    
+    public func slideEngineDidTriggerScreenshot() {
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.alignment()
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            task.arguments = ["-x", "-c"]
+            do {
+                try task.run()
+                task.waitUntilExit()
+                DispatchQueue.main.async {
+                    EdgeBarHUDOverlay.shared.show(.media(message: "Screenshot Copied", icon: "camera.fill"))
+                }
+            } catch {
+                NSLog("[EdgeBar] Failed to trigger screencapture: \(error)")
+            }
+        }
+    }
+    
+    public func slideEngineDidTriggerScreenRecording() {
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.alignment()
+        }
+        
+        let url = URL(fileURLWithPath: "/System/Applications/Utilities/Screenshot.app")
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
+            if error != nil {
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                task.arguments = ["-a", "Screenshot"]
+                try? task.run()
+            }
+            DispatchQueue.main.async {
+                EdgeBarHUDOverlay.shared.show(.media(message: "Screen Recording", icon: "record.circle"))
+            }
+        }
+    }
 }

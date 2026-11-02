@@ -55,6 +55,25 @@ public struct EdgesSettingsTab: View {
                     }
                     .padding(8)
                     
+                    // Top-Left Corner (Screenshot Hold)
+                    if settingsStore.settings.cornerHoldsEnabled {
+                        VStack {
+                            HStack {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.blue.opacity(0.5))
+                                    .overlay(
+                                        Image(systemName: "camera.fill")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(.white)
+                                    )
+                                    .frame(width: 26, height: 26)
+                                Spacer()
+                            }
+                            Spacer()
+                        }
+                        .padding(10)
+                    }
+                    
                     // Top-Right Corner Mute Target
                     VStack {
                         HStack {
@@ -71,6 +90,44 @@ public struct EdgesSettingsTab: View {
                         Spacer()
                     }
                     .padding(10)
+                    
+                    // Bottom-Left Corner (Screenshot Hold)
+                    if settingsStore.settings.cornerHoldsEnabled {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.blue.opacity(0.5))
+                                    .overlay(
+                                        Image(systemName: "camera.fill")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(.white)
+                                    )
+                                    .frame(width: 26, height: 26)
+                                Spacer()
+                            }
+                        }
+                        .padding(10)
+                    }
+                    
+                    // Bottom-Right Corner (Screen Recording Hold)
+                    if settingsStore.settings.cornerHoldsEnabled {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.red.opacity(0.5))
+                                    .overlay(
+                                        Image(systemName: "record.circle")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.white)
+                                    )
+                                    .frame(width: 26, height: 26)
+                            }
+                        }
+                        .padding(10)
+                    }
                     
                     // Bottom Edge Zone
                     VStack {
