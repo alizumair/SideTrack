@@ -1,0 +1,9 @@
+# Xcode and SPM build artifacts
+.build/
+build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+.DS_Store
+*.swp
+*~
