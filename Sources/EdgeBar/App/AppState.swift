@@ -14,6 +14,12 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     public let slideEngine: SlideEngine
     private var cancellables = Set<AnyCancellable>()
     
+    // Accumulators for discrete step tracking (16 steps across the trackpad)
+    private var accumulatedVolumeTravel: Float = 0.0
+    private let travelPerVolumeStep: Float = 0.030 // ~5mm slide per macOS volume tick
+    
+    private var lastBrightnessOSDTime: Double = 0.0
+    
     public init(settingsStore: SettingsStore = .shared) {
         self.settingsStore = settingsStore
         self.slideEngine = SlideEngine(settings: settingsStore.settings)
@@ -70,13 +76,11 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         slideEngine.processFrame(contacts: contacts, timestamp: timestamp)
     }
     
-    private var lastVolumeOSDTime: Double = 0.0
-    private var lastBrightnessOSDTime: Double = 0.0
-    
     // MARK: - SlideEngineDelegate
     public func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {
         let current = DisplayBrightnessBridge.shared.getBrightness()
-        let scaledDelta = delta * 1.5
+        // Calibrated sensitivity: 0.8x gives calm, predictable adjustments
+        let scaledDelta = delta * 0.8
         let updated = max(0.0, min(1.0, current + scaledDelta))
         DisplayBrightnessBridge.shared.setBrightness(updated)
         
@@ -87,9 +91,6 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         let now = CACurrentMediaTime()
         if now - lastBrightnessOSDTime >= 0.035 {
             lastBrightnessOSDTime = now
-            if settingsStore.settings.showHUDOverlay {
-                EdgeBarHUDOverlay.shared.show(.brightness(level: updated))
-            }
             if settingsStore.settings.useSystemOSD {
                 OSDBridge.shared.showBrightness(level: updated)
             }
@@ -97,25 +98,27 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     }
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
-        let current = CoreAudioBridge.shared.getVolume()
-        let scaledDelta = delta * 1.5
-        let updated = max(0.0, min(1.0, current + scaledDelta))
-        CoreAudioBridge.shared.setVolume(updated)
+        // Accumulate vertical travel distance
+        accumulatedVolumeTravel += delta
+        let step = isPrecise ? (travelPerVolumeStep * 2.0) : travelPerVolumeStep
         
-        if settingsStore.settings.hapticsEnabled {
-            HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
-        }
-        
-        let now = CACurrentMediaTime()
-        if now - lastVolumeOSDTime >= 0.035 {
-            lastVolumeOSDTime = now
-            let muted = CoreAudioBridge.shared.isMuted()
-            // Always show the sound popup overlay for real-time visual feedback
-            if settingsStore.settings.showHUDOverlay {
-                EdgeBarHUDOverlay.shared.show(.volume(level: updated, isMuted: muted))
+        if accumulatedVolumeTravel >= step {
+            // Slide upwards: Volume Up
+            while accumulatedVolumeTravel >= step {
+                accumulatedVolumeTravel -= step
+                MediaKeyDispatcher.shared.volumeUp()
+                if settingsStore.settings.hapticsEnabled {
+                    HapticFeedbackBridge.shared.tick()
+                }
             }
-            if settingsStore.settings.useSystemOSD {
-                OSDBridge.shared.showVolume(level: updated, muted: muted)
+        } else if accumulatedVolumeTravel <= -step {
+            // Slide downwards: Volume Down
+            while accumulatedVolumeTravel <= -step {
+                accumulatedVolumeTravel += step
+                MediaKeyDispatcher.shared.volumeDown()
+                if settingsStore.settings.hapticsEnabled {
+                    HapticFeedbackBridge.shared.tick()
+                }
             }
         }
     }
@@ -123,20 +126,11 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     public func slideEngineDidSkipMediaTrack(forward: Bool) {
         if forward {
             MediaKeyDispatcher.shared.nextTrack()
-            if settingsStore.settings.hapticsEnabled {
-                HapticFeedbackBridge.shared.tick()
-            }
-            if settingsStore.settings.showHUDOverlay {
-                EdgeBarHUDOverlay.shared.show(.media(message: "Next Track", icon: "forward.fill"))
-            }
         } else {
             MediaKeyDispatcher.shared.previousTrack()
-            if settingsStore.settings.hapticsEnabled {
-                HapticFeedbackBridge.shared.tick()
-            }
-            if settingsStore.settings.showHUDOverlay {
-                EdgeBarHUDOverlay.shared.show(.media(message: "Previous Track", icon: "backward.fill"))
-            }
+        }
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.tick()
         }
     }
     
@@ -145,22 +139,12 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.alignment()
         }
-        if settingsStore.settings.showHUDOverlay {
-            EdgeBarHUDOverlay.shared.show(.media(message: "Play / Pause", icon: "playpause.fill"))
-        }
     }
     
     public func slideEngineDidToggleMute() {
         CoreAudioBridge.shared.toggleMute()
-        let muted = CoreAudioBridge.shared.isMuted()
-        let vol = CoreAudioBridge.shared.getVolume()
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.alignment()
-        }
-        if settingsStore.settings.useSystemOSD {
-            OSDBridge.shared.showVolume(level: vol, muted: muted)
-        } else if settingsStore.settings.showHUDOverlay {
-            EdgeBarHUDOverlay.shared.show(.volume(level: vol, isMuted: muted))
         }
     }
     
@@ -170,10 +154,12 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         }
         
         if isSliding {
+            accumulatedVolumeTravel = 0.0
             if settingsStore.settings.cursorFreezingEnabled {
                 CursorFreezer.shared.freeze()
             }
         } else {
+            accumulatedVolumeTravel = 0.0
             CursorFreezer.shared.unfreeze()
             HapticFeedbackBridge.shared.reset()
         }

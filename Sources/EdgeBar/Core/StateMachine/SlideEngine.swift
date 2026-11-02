@@ -28,6 +28,9 @@ public final class SlideEngine {
     private var hasFiredMediaSkipForCurrentSlide: Bool = false
     private var isSlidingActive: Bool = false
     
+    // Vertical travel threshold required before engaging an edge slide (~3.5mm)
+    private let verticalActivationDistance: Float = 0.022
+    
     // Test hook for simulating modifier flags without depending on UI events
     public var modifierFlagsProvider: (() -> NSEvent.ModifierFlags)?
     
@@ -136,30 +139,42 @@ public final class SlideEngine {
                     handleTap(zone: zone, x: contact.x, y: contact.y, timestamp: timestamp)
                 }
                 phase = .idle
-            } else if movement >= tapThreshold {
-                // Movement detected: check directional intent!
-                if zone == .left || zone == .right || zone == .topRightCorner {
-                    // For side edges: MUST be predominantly VERTICAL!
-                    // If the user drags horizontally away from the edge (absDx > absDy),
-                    // cancel edge handling and yield this touch to macOS for navigation.
-                    if absDx > absDy {
-                        ignoredTouchIDs.insert(touchID)
-                        phase = .idle
-                        return
-                    }
-                } else if zone == .bottom {
-                    // For bottom edge: MUST be predominantly HORIZONTAL!
-                    if absDy > absDx {
-                        ignoredTouchIDs.insert(touchID)
-                        phase = .idle
-                        return
-                    }
+                return
+            }
+            
+            // Check directional motion intent
+            if zone == .left || zone == .right || zone == .topRightCorner {
+                // HORIZONTAL DRAG REJECTION:
+                // If the user drags horizontally from the edge towards the center (absDx >= absDy),
+                // cancel edge handling immediately so this touch has ZERO effect on volume or brightness.
+                if absDx > 0.012 && absDx >= absDy {
+                    ignoredTouchIDs.insert(touchID)
+                    phase = .idle
+                    return
                 }
                 
-                // Direction confirmed: Transition to confirmed sliding
-                phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
-                startSlide()
-                processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
+                // VERTICAL ENGAGEMENT:
+                // Must slide vertically by at least verticalActivationDistance (~3.5mm)
+                // with predominantly vertical travel before engaging slider.
+                if absDy >= verticalActivationDistance && absDy >= absDx * 1.4 {
+                    phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
+                    startSlide()
+                    processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
+                }
+            } else if zone == .bottom {
+                // For bottom edge: must be predominantly horizontal
+                if absDy > 0.012 && absDy >= absDx {
+                    ignoredTouchIDs.insert(touchID)
+                    phase = .idle
+                    return
+                }
+                
+                // Horizontal track skip check
+                if absDx >= 0.040 && absDx >= absDy * 1.4 {
+                    phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
+                    startSlide()
+                    processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
+                }
             }
             
         case .sliding(let touchID, let zone, let currentX, let currentY):
@@ -173,9 +188,10 @@ public final class SlideEngine {
                 endSlide(cancelled: false)
                 phase = .idle
             } else {
-                // If a side-edge slide wanders excessively into the middle of the pad, cancel it
-                if (zone == .left && contact.x > Float(settings.edgeWidthFraction) * 1.5) ||
-                   (zone == .right && contact.x < (1.0 - Float(settings.edgeWidthFraction) * 1.5)) {
+                // If a side-edge slide wanders horizontally off the edge strip into the trackpad body,
+                // cancel the slide immediately so it stops affecting the slider.
+                if (zone == .left && contact.x > Float(settings.edgeWidthFraction) * 1.4) ||
+                   ((zone == .right || zone == .topRightCorner) && contact.x < (1.0 - Float(settings.edgeWidthFraction) * 1.4)) {
                     endSlide(cancelled: true)
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
@@ -247,7 +263,7 @@ public final class SlideEngine {
         case .bottom:
             // Bottom Edge: Strictly horizontal media track skip
             accumulatedBottomSwipeDelta += deltaX * sensitivity
-            let swipeThreshold: Float = 0.045 // 4.5% horizontal swipe distance
+            let swipeThreshold: Float = 0.040 // 4% horizontal swipe distance
             if !hasFiredMediaSkipForCurrentSlide {
                 if accumulatedBottomSwipeDelta > swipeThreshold {
                     delegate?.slideEngineDidSkipMediaTrack(forward: true)

@@ -45,7 +45,7 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     
     // Extras & System Bridges
     public var showMenuBarIcon: Bool = true
-    public var showHUDOverlay: Bool = true
+    public var showHUDOverlay: Bool = false            // Use native macOS system popups by default
     public var useSystemOSD: Bool = true
     public var doubleTapMaxInterval: Double = 0.35
     public var maxTapMovementThreshold: Double = 0.015 // Tight tap boundary (~1.5mm)
