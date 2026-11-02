@@ -91,6 +91,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         if accumulatedBrightnessTravel >= step {
             while accumulatedBrightnessTravel >= step {
                 accumulatedBrightnessTravel -= step
+                NSLog("[EdgeBar] Brightness UP")
                 MediaKeyDispatcher.shared.brightnessUp()
                 if settingsStore.settings.hapticsEnabled {
                     HapticFeedbackBridge.shared.tick()
@@ -99,6 +100,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         } else if accumulatedBrightnessTravel <= -step {
             while accumulatedBrightnessTravel <= -step {
                 accumulatedBrightnessTravel += step
+                NSLog("[EdgeBar] Brightness DOWN")
                 MediaKeyDispatcher.shared.brightnessDown()
                 if settingsStore.settings.hapticsEnabled {
                     HapticFeedbackBridge.shared.tick()
@@ -120,6 +122,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         if accumulatedVolumeTravel >= step {
             while accumulatedVolumeTravel >= step {
                 accumulatedVolumeTravel -= step
+                NSLog("[EdgeBar] Volume UP")
                 MediaKeyDispatcher.shared.volumeUp()
                 if settingsStore.settings.hapticsEnabled {
                     HapticFeedbackBridge.shared.tick()
@@ -128,6 +131,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         } else if accumulatedVolumeTravel <= -step {
             while accumulatedVolumeTravel <= -step {
                 accumulatedVolumeTravel += step
+                NSLog("[EdgeBar] Volume DOWN")
                 MediaKeyDispatcher.shared.volumeDown()
                 if settingsStore.settings.hapticsEnabled {
                     HapticFeedbackBridge.shared.tick()

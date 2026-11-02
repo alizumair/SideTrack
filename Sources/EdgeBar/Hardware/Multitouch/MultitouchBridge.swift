@@ -140,6 +140,9 @@ public final class MultitouchBridge {
         for i in 0..<Int(numTouches) {
             contacts.append(TrackpadContact(raw: rawTouches[i]))
         }
+        if let first = contacts.first {
+            NSLog("[EdgeBar] Contact id=%d count=%d x=%.3f y=%.3f state=%d", first.id, numTouches, first.x, first.y, first.state.rawValue)
+        }
         MultitouchBridge.shared.processContacts(contacts, timestamp: timestamp, frame: frame)
         return 0
     }

@@ -24,6 +24,10 @@
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 EdgeBar Contributors. All rights reserved.</string>
 </dict>
