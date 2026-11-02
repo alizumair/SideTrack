@@ -76,13 +76,21 @@ public struct GeneralSettingsTab: View {
                 Divider()
                 
                 // About
-                HStack(spacing: 12) {
-                    Image(systemName: "slider.vertical.3")
-                        .font(.system(size: 32))
-                        .foregroundColor(.accentColor)
+                HStack(spacing: 16) {
+                    if let icon = NSApp.applicationIconImage {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 48, height: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    } else {
+                        Image(systemName: "slider.vertical.3")
+                            .font(.system(size: 32))
+                            .foregroundColor(.accentColor)
+                    }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("EdgeBar")
+                        Text("SideTrack (EdgeBar)")
                             .font(.headline)
                         Text("Version 1.0.0 • Pure Swift Native Utility")
                             .font(.caption)

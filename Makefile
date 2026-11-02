@@ -20,6 +20,7 @@ app: build
 	@cp -f .build/release/$(APP_NAME) $(MACOS_DIR)/$(APP_NAME)
 	@chmod +x $(MACOS_DIR)/$(APP_NAME)
 	@cp -f Resources/Info.plist $(CONTENTS_DIR)/Info.plist
+	@cp -f Resources/*.icns $(RESOURCES_DIR)/ 2>/dev/null || true
 	@xattr -cr $(APP_BUNDLE) 2>/dev/null || true
 	@echo "==> Code-signing application bundle..."
 	@codesign --force --deep --sign - $(APP_BUNDLE)
