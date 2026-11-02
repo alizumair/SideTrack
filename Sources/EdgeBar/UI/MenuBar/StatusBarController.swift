@@ -22,10 +22,22 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
         statusItem.isVisible = true
         
         if let button = statusItem.button {
-            let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-            let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "SideTrack")?.withSymbolConfiguration(config)
-            image?.isTemplate = true
-            button.image = image
+            if let icon = NSApp.applicationIconImage ?? NSImage(named: "AppIcon") {
+                let size = NSSize(width: 18, height: 18)
+                let menuImage = NSImage(size: size)
+                menuImage.lockFocus()
+                let path = NSBezierPath(roundedRect: NSRect(origin: .zero, size: size), xRadius: 4, yRadius: 4)
+                path.addClip()
+                icon.draw(in: NSRect(origin: .zero, size: size), from: .zero, operation: .sourceOver, fraction: 1.0)
+                menuImage.unlockFocus()
+                menuImage.isTemplate = false
+                button.image = menuImage
+            } else {
+                let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+                let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "SideTrack")?.withSymbolConfiguration(config)
+                image?.isTemplate = true
+                button.image = image
+            }
             button.imagePosition = .imageOnly
             button.toolTip = "SideTrack"
         }
