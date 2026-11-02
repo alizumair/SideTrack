@@ -20,7 +20,14 @@ public final class SettingsStore: ObservableObject {
         
         if let data = userDefaults.data(forKey: SettingsModel.storageKey) {
             do {
-                let decoded = try decoder.decode(SettingsModel.self, from: data)
+                var decoded = try decoder.decode(SettingsModel.self, from: data)
+                if decoded.version < 2 {
+                    decoded.edgeWidthFraction = 0.10
+                    decoded.edgeHeightFraction = 0.10
+                    decoded.cornerZoneFraction = 0.10
+                    decoded.hapticSteps = 64
+                    decoded.version = 2
+                }
                 self.settings = decoded
             } catch {
                 NSLog("[EdgeBar] Failed to decode settings, falling back to defaults: %@", error.localizedDescription)

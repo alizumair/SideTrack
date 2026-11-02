@@ -165,7 +165,7 @@ public struct EdgesSettingsTab: View {
                             .frame(width: 140, alignment: .leading)
                         Slider(
                             value: $settingsStore.settings.edgeWidthFraction,
-                            in: 0.10...0.30,
+                            in: 0.05...0.30,
                             step: 0.01
                         )
                         Text("\(Int(settingsStore.settings.edgeWidthFraction * 100))%")
@@ -178,7 +178,7 @@ public struct EdgesSettingsTab: View {
                             .frame(width: 140, alignment: .leading)
                         Slider(
                             value: $settingsStore.settings.edgeHeightFraction,
-                            in: 0.10...0.30,
+                            in: 0.05...0.30,
                             step: 0.01
                         )
                         Text("\(Int(settingsStore.settings.edgeHeightFraction * 100))%")

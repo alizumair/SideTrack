@@ -19,16 +19,16 @@ public enum CornerAction: String, Codable, CaseIterable, Identifiable, Sendable 
 }
 
 public struct SettingsModel: Codable, Equatable, Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
     public static let storageKey = "io.github.edgebar.settings.v1"
     
     public var version: Int = SettingsModel.currentVersion
     public var isEnabled: Bool = true
     
     // Edges
-    public var edgeWidthFraction: Double = 0.16        // 16% outer horizontal edge (~25mm)
-    public var edgeHeightFraction: Double = 0.18       // 18% outer bottom edge
-    public var cornerZoneFraction: Double = 0.12       // 12% corner box (compact for tap targets)
+    public var edgeWidthFraction: Double = 0.10        // 10% outer horizontal edge
+    public var edgeHeightFraction: Double = 0.10       // 10% outer bottom edge
+    public var cornerZoneFraction: Double = 0.10       // 10% corner box
     public var leftEdgeAction: EdgeAction = .brightness
     public var rightEdgeAction: EdgeAction = .volume
     public var bottomEdgeAction: EdgeAction = .mediaTrack
@@ -40,7 +40,7 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     public var invertVerticalAxis: Bool = false
     public var cursorFreezingEnabled: Bool = true
     public var hapticsEnabled: Bool = true
-    public var hapticSteps: Int = 16
+    public var hapticSteps: Int = 64                   // 64 Steps (Ultra-Smooth)
     public var precisionMultiplier: Double = 0.25      // Quarter-step with ⇧⌥
     
     // Extras & System Bridges
