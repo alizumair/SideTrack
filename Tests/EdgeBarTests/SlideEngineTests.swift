@@ -155,6 +155,34 @@ final class SlideEngineTests: XCTestCase {
         XCTAssertFalse(delegate.slidingStates.contains(true))
     }
     
+    func testHorizontalTurnDuringSlideCancelsSlide() {
+        var t = 1.0
+        // 1. Touch starts on right edge and slides vertically up
+        let c1 = TrackpadContact(id: 1, x: 0.95, y: 0.50, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c1], timestamp: t)
+        
+        t += 0.05
+        let c2 = TrackpadContact(id: 1, x: 0.95, y: 0.60, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c2], timestamp: t)
+        XCTAssertTrue(delegate.slidingStates.contains(true))
+        
+        // 2. User suddenly turns horizontally towards trackpad center (x: 0.88, y: 0.605)
+        t += 0.05
+        let c3 = TrackpadContact(id: 1, x: 0.88, y: 0.605, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c3], timestamp: t)
+        
+        // Slide must end immediately and phase must reset
+        XCTAssertEqual(delegate.slidingStates.last, false)
+        XCTAssertEqual(engine.phase, .idle)
+        
+        // Further horizontal movement into center must not trigger volume
+        let volumeCountBefore = delegate.volumeDeltas.count
+        t += 0.05
+        let c4 = TrackpadContact(id: 1, x: 0.70, y: 0.61, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c4], timestamp: t)
+        XCTAssertEqual(delegate.volumeDeltas.count, volumeCountBefore)
+    }
+    
     func testBottomVerticalDragUpIsIgnored() {
         var t = 1.0
         // Touch starts in bottom strip (x: 0.50, y: 0.08)

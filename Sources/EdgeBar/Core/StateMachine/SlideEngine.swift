@@ -144,26 +144,27 @@ public final class SlideEngine {
             }
             
             if zone == .left || zone == .right || zone == .topRightCorner {
+                let inwardDx: Float = (zone == .left) ? dx : -dx
+                
                 // Gating for side edges:
-                // Check if user is sliding horizontally away from the edge into the trackpad body
-                let isMovingInward: Bool
-                if zone == .left {
-                    // Left edge moving towards center: dx > 0
-                    isMovingInward = dx > 0.035 && dx > (absDy * 1.8)
-                } else {
-                    // Right edge moving towards center: dx < 0
-                    isMovingInward = dx < -0.035 && (-dx) > (absDy * 1.8)
+                // If moving horizontally (inward towards center or horizontal swipe):
+                if inwardDx >= 0.012 && inwardDx > absDy {
+                    // Moving inward into the trackpad: pass through to macOS cursor/gestures
+                    ignoredTouchIDs.insert(touchID)
+                    phase = .idle
+                    return
                 }
                 
-                if isMovingInward {
-                    // Clearly moving horizontally into the trackpad: pass through to macOS
+                // Reject general horizontal movement on vertical strips
+                if absDx >= 0.015 && absDx > (absDy * 1.2) {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
                 // Engage vertical sliding along the edge when vertical movement passes threshold (~0.8mm)
-                if absDy >= 0.010 && absDy >= absDx {
+                // and vertical movement dominates horizontal movement
+                if absDy >= 0.010 && absDy >= (absDx * 1.2) {
                     phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                     startSlide()
                     processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
@@ -199,28 +200,40 @@ public final class SlideEngine {
                 endSlide(cancelled: false)
                 phase = .idle
             } else {
-                // If a side-edge slide wanders excessively into the middle of the pad, cancel it
-                if zone == .left && contact.x > Float(settings.edgeWidthFraction) * 1.5 {
-                    endSlide(cancelled: true)
-                    ignoredTouchIDs.insert(touchID)
-                    phase = .idle
-                    return
+                let dx = contact.x - currentX
+                let dy = contact.y - currentY
+                
+                // Check if user turned horizontally towards the trackpad body during an active slide
+                if zone == .left || zone == .right || zone == .topRightCorner {
+                    let inwardDx: Float = (zone == .left) ? dx : -dx
+                    if inwardDx >= 0.015 && inwardDx > abs(dy) * 1.3 {
+                        endSlide(cancelled: true)
+                        ignoredTouchIDs.insert(touchID)
+                        phase = .idle
+                        return
+                    }
+                    
+                    // Exit slide if the finger crosses beyond the edge zone into the trackpad body
+                    if zone == .left && contact.x > Float(settings.edgeWidthFraction) * 1.15 {
+                        endSlide(cancelled: true)
+                        ignoredTouchIDs.insert(touchID)
+                        phase = .idle
+                        return
+                    }
+                    if (zone == .right || zone == .topRightCorner) && contact.x < (1.0 - Float(settings.edgeWidthFraction) * 1.15) {
+                        endSlide(cancelled: true)
+                        ignoredTouchIDs.insert(touchID)
+                        phase = .idle
+                        return
+                    }
                 }
-                if (zone == .right || zone == .topRightCorner) && contact.x < (1.0 - Float(settings.edgeWidthFraction) * 1.5) {
-                    endSlide(cancelled: true)
-                    ignoredTouchIDs.insert(touchID)
-                    phase = .idle
-                    return
-                }
-                if zone == .bottom && contact.y > Float(settings.edgeHeightFraction) * 1.5 {
+                if zone == .bottom && contact.y > Float(settings.edgeHeightFraction) * 1.25 {
                     endSlide(cancelled: true)
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
-                let dx = contact.x - currentX
-                let dy = contact.y - currentY
                 phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                 processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
             }
@@ -252,6 +265,13 @@ public final class SlideEngine {
     }
     
     private func processSlideDelta(zone: EdgeZone, deltaX: Float, deltaY: Float) {
+        // If movement on this frame is predominantly horizontal, ignore vertical delta on vertical edge sliders
+        let absDx = abs(deltaX)
+        let absDy = abs(deltaY)
+        if (zone == .left || zone == .right || zone == .topRightCorner) && absDx > (absDy * 1.2) {
+            return
+        }
+        
         let isPrecise = isPrecisionHeld()
         let multiplier: Float = isPrecise ? Float(settings.precisionMultiplier) : 1.0
         let sensitivity = Float(settings.sensitivity)
