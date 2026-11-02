@@ -146,25 +146,26 @@ public final class SlideEngine {
             if zone == .left || zone == .right || zone == .topRightCorner {
                 let inwardDx: Float = (zone == .left) ? dx : -dx
                 
-                // Gating for side edges:
-                // If moving horizontally (inward towards center or horizontal swipe):
-                if inwardDx >= 0.012 && inwardDx > absDy {
-                    // Moving inward into the trackpad: pass through to macOS cursor/gestures
+                // 1. Inward stroke rejection: moving away from edge into trackpad
+                // Any inward movement >= 0.008 (or where inward motion is at least half of vertical)
+                // clearly indicates the user is swiping horizontally into the trackpad body
+                if inwardDx >= 0.008 && inwardDx > (absDy * 0.5) {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
-                // Reject general horizontal movement on vertical strips
-                if absDx >= 0.015 && absDx > (absDy * 1.2) {
+                // 2. Reject general horizontal movement on vertical strips
+                if absDx >= 0.010 && absDx > (absDy * 0.7) {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
-                // Engage vertical sliding along the edge when vertical movement passes threshold (~0.8mm)
-                // and vertical movement dominates horizontal movement
-                if absDy >= 0.010 && absDy >= (absDx * 1.2) {
+                // 3. Strict vertical lock for edge sliders:
+                // Must have moved vertically at least ~1.0mm (absDy >= 0.012),
+                // and the stroke must be predominantly vertical (absDy >= absDx * 2.0).
+                if absDy >= 0.012 && absDy >= (absDx * 2.0) {
                     phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                     startSlide()
                     processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
@@ -206,7 +207,7 @@ public final class SlideEngine {
                 // Check if user turned horizontally towards the trackpad body during an active slide
                 if zone == .left || zone == .right || zone == .topRightCorner {
                     let inwardDx: Float = (zone == .left) ? dx : -dx
-                    if inwardDx >= 0.015 && inwardDx > abs(dy) * 1.3 {
+                    if inwardDx >= 0.008 && inwardDx > (abs(dy) * 0.8) {
                         endSlide(cancelled: true)
                         ignoredTouchIDs.insert(touchID)
                         phase = .idle
@@ -214,13 +215,13 @@ public final class SlideEngine {
                     }
                     
                     // Exit slide if the finger crosses beyond the edge zone into the trackpad body
-                    if zone == .left && contact.x > Float(settings.edgeWidthFraction) * 1.15 {
+                    if zone == .left && contact.x > Float(settings.edgeWidthFraction) {
                         endSlide(cancelled: true)
                         ignoredTouchIDs.insert(touchID)
                         phase = .idle
                         return
                     }
-                    if (zone == .right || zone == .topRightCorner) && contact.x < (1.0 - Float(settings.edgeWidthFraction) * 1.15) {
+                    if (zone == .right || zone == .topRightCorner) && contact.x < (1.0 - Float(settings.edgeWidthFraction)) {
                         endSlide(cancelled: true)
                         ignoredTouchIDs.insert(touchID)
                         phase = .idle
@@ -265,10 +266,10 @@ public final class SlideEngine {
     }
     
     private func processSlideDelta(zone: EdgeZone, deltaX: Float, deltaY: Float) {
-        // If movement on this frame is predominantly horizontal, ignore vertical delta on vertical edge sliders
+        // If movement on this frame is not predominantly vertical, ignore vertical delta on vertical edge sliders
         let absDx = abs(deltaX)
         let absDy = abs(deltaY)
-        if (zone == .left || zone == .right || zone == .topRightCorner) && absDx > (absDy * 1.2) {
+        if (zone == .left || zone == .right || zone == .topRightCorner) && absDy < (absDx * 1.5) {
             return
         }
         
