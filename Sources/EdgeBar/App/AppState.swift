@@ -14,12 +14,12 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     public let slideEngine: SlideEngine
     private var cancellables = Set<AnyCancellable>()
     
-    // Accumulators for discrete step tracking (16 steps across the trackpad)
+    // Accumulators for discrete step tracking (calm, predictable stepping across trackpad)
     private var accumulatedVolumeTravel: Float = 0.0
-    private let travelPerVolumeStep: Float = 0.028 // ~4.5mm slide per macOS volume tick
+    private let travelPerVolumeStep: Float = 0.045 // ~6mm slide per macOS volume tick
     
     private var accumulatedBrightnessTravel: Float = 0.0
-    private let travelPerBrightnessStep: Float = 0.028 // ~4.5mm slide per macOS brightness tick
+    private let travelPerBrightnessStep: Float = 0.045 // ~6mm slide per macOS brightness tick
     
     public init(settingsStore: SettingsStore = .shared) {
         self.settingsStore = settingsStore
@@ -79,8 +79,14 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     // MARK: - SlideEngineDelegate
     public func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {
+        if delta > 0 && accumulatedBrightnessTravel < 0 {
+            accumulatedBrightnessTravel = 0
+        } else if delta < 0 && accumulatedBrightnessTravel > 0 {
+            accumulatedBrightnessTravel = 0
+        }
+        
         accumulatedBrightnessTravel += delta
-        let step = isPrecise ? (travelPerBrightnessStep * 2.5) : travelPerBrightnessStep
+        let step = isPrecise ? (travelPerBrightnessStep * 2.0) : travelPerBrightnessStep
         
         if accumulatedBrightnessTravel >= step {
             while accumulatedBrightnessTravel >= step {
@@ -102,8 +108,14 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     }
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
+        if delta > 0 && accumulatedVolumeTravel < 0 {
+            accumulatedVolumeTravel = 0
+        } else if delta < 0 && accumulatedVolumeTravel > 0 {
+            accumulatedVolumeTravel = 0
+        }
+        
         accumulatedVolumeTravel += delta
-        let step = isPrecise ? (travelPerVolumeStep * 2.5) : travelPerVolumeStep
+        let step = isPrecise ? (travelPerVolumeStep * 2.0) : travelPerVolumeStep
         
         if accumulatedVolumeTravel >= step {
             while accumulatedVolumeTravel >= step {

@@ -125,7 +125,7 @@ final class SlideEngineTests: XCTestCase {
     
     func testHorizontalDragFromEdgeIsIgnored() {
         var t = 1.0
-        // Touch lands on left edge (x: 0.05, y: 0.50)
+        // 1. Touch lands on left edge (x: 0.05, y: 0.50)
         let c1 = TrackpadContact(id: 1, x: 0.05, y: 0.50, state: .starting, timestamp: t)
         engine.processFrame(contacts: [c1], timestamp: t)
         
@@ -134,9 +134,63 @@ final class SlideEngineTests: XCTestCase {
         let c2 = TrackpadContact(id: 1, x: 0.15, y: 0.50, state: .touching, timestamp: t)
         engine.processFrame(contacts: [c2], timestamp: t)
         
-        // Because horizontal motion dominates (absDx > absDy), it must be rejected!
+        // Because horizontal motion dominates into trackpad, it must be rejected!
         XCTAssertEqual(delegate.brightnessDeltas.count, 0)
         XCTAssertFalse(delegate.slidingStates.contains(true))
+        
+        // Lift finger
+        engine.processFrame(contacts: [], timestamp: t + 0.05)
+        
+        // 2. Touch lands on right edge (x: 0.95, y: 0.50)
+        t += 0.10
+        let c3 = TrackpadContact(id: 2, x: 0.95, y: 0.50, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c3], timestamp: t)
+        
+        // User drags horizontally towards center (x: 0.85, y: 0.50)
+        t += 0.05
+        let c4 = TrackpadContact(id: 2, x: 0.85, y: 0.50, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c4], timestamp: t)
+        
+        XCTAssertEqual(delegate.volumeDeltas.count, 0)
+        XCTAssertFalse(delegate.slidingStates.contains(true))
+    }
+    
+    func testBottomVerticalDragUpIsIgnored() {
+        var t = 1.0
+        // Touch starts in bottom strip (x: 0.50, y: 0.08)
+        let c1 = TrackpadContact(id: 1, x: 0.50, y: 0.08, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c1], timestamp: t)
+        
+        // Drag vertically up into trackpad (x: 0.50, y: 0.25)
+        t += 0.05
+        let c2 = TrackpadContact(id: 1, x: 0.50, y: 0.25, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c2], timestamp: t)
+        
+        XCTAssertEqual(delegate.mediaSkips.count, 0)
+        XCTAssertFalse(delegate.slidingStates.contains(true))
+    }
+    
+    func testTouchIDReuseWorksAfterLift() {
+        var t = 1.0
+        // Touch 1 starts in middle and is ignored
+        let c1 = TrackpadContact(id: 1, x: 0.5, y: 0.5, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c1], timestamp: t)
+        
+        // Touch 1 lifts
+        engine.processFrame(contacts: [], timestamp: t + 0.05)
+        
+        // macOS reuses touch ID 1 on the right edge!
+        t += 0.10
+        let c2 = TrackpadContact(id: 1, x: 0.95, y: 0.50, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c2], timestamp: t)
+        
+        t += 0.05
+        let c3 = TrackpadContact(id: 1, x: 0.95, y: 0.65, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c3], timestamp: t)
+        
+        // Must succeed and NOT be blocked by previous middle touch!
+        XCTAssertGreaterThan(delegate.volumeDeltas.count, 0)
+        XCTAssertTrue(delegate.slidingStates.contains(true))
     }
     
     func testMultiFingerGateCancelsSlide() {

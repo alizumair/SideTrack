@@ -27,12 +27,6 @@ public final class SlideEngine {
     private var hasFiredMediaSkipForCurrentSlide: Bool = false
     private var isSlidingActive: Bool = false
     
-    // Vertical travel required along an edge before engaging (~4mm)
-    private let verticalActivationDistance: Float = 0.025
-    
-    // Horizontal travel required along bottom strip before track skip (~5mm)
-    private let horizontalSwipeDistance: Float = 0.035
-    
     // Test hook for simulating modifier flags without depending on UI events
     public var modifierFlagsProvider: (() -> NSEvent.ModifierFlags)?
     
@@ -61,8 +55,13 @@ public final class SlideEngine {
             return
         }
         
-        // 1. Intelligent Multi-finger Gate:
-        // When 2 or more fingers are on the pad, pass through immediately to macOS for native scrolling.
+        // Purge any ignored touch IDs that are no longer active on the trackpad
+        let activeIDs = Set(contacts.map { $0.id })
+        ignoredTouchIDs = ignoredTouchIDs.intersection(activeIDs)
+        
+        // 1. Multi-finger Gate:
+        // When 2 or more fingers are on the pad, yield immediately and completely to macOS
+        // for native scrolling, pinch-to-zoom, and mission control.
         if contacts.count > 1 {
             if isSlidingActive || phase != .idle {
                 endSlide(cancelled: true)
@@ -93,11 +92,8 @@ public final class SlideEngine {
             return
         }
         
-        // If this touch ID was flagged as middle/ignored, ignore it entirely
+        // If this touch ID was flagged as ignored for this contact session, skip it
         if ignoredTouchIDs.contains(contact.id) {
-            if contact.state.isTerminating {
-                ignoredTouchIDs.remove(contact.id)
-            }
             return
         }
         
@@ -106,7 +102,7 @@ public final class SlideEngine {
         case .idle:
             let zone = classifier.classify(x: contact.x, y: contact.y)
             if zone == .middle {
-                // Reject middle touch: strictly ignore it throughout its lifespan
+                // Reject middle touches: normal pointer movement, ignore throughout its session
                 ignoredTouchIDs.insert(contact.id)
                 return
             }
@@ -133,8 +129,8 @@ public final class SlideEngine {
             let duration = timestamp - startTime
             
             if contact.state.isTerminating {
-                // Finger lifted while still a candidate
-                let tapThreshold: Float = 0.020
+                // Finger lifted while still a candidate: check if it's a tap
+                let tapThreshold: Float = 0.025
                 if movement < tapThreshold && duration < settings.doubleTapMaxInterval {
                     handleTap(zone: zone, x: contact.x, y: contact.y, timestamp: timestamp)
                 }
@@ -143,33 +139,47 @@ public final class SlideEngine {
             }
             
             if zone == .left || zone == .right || zone == .topRightCorner {
-                // Check if user is sliding horizontally away from the edge into the trackpad
-                if absDx > 0.035 && absDx > (absDy * 1.5) {
-                    // Clearly moving horizontally towards the trackpad center: ignore this touch!
+                // Gating for side edges:
+                // Check if user is sliding horizontally away from the edge into the trackpad body
+                let isMovingInward: Bool
+                if zone == .left {
+                    // Left edge moving towards center: dx > 0
+                    isMovingInward = dx > 0.020 && dx > (absDy * 1.2)
+                } else {
+                    // Right edge moving towards center: dx < 0
+                    isMovingInward = dx < -0.020 && (-dx) > (absDy * 1.2)
+                }
+                
+                if isMovingInward {
+                    // Clearly moving horizontally into the trackpad: pass through to macOS
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
-                // Only engage slider after sliding at least ~4mm vertically along the edge
-                if absDy >= verticalActivationDistance && absDy >= absDx {
+                // Engage vertical sliding along the edge when vertical movement passes threshold
+                if absDy >= 0.015 && absDy >= absDx {
                     phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                     startSlide()
                     processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
                 }
             } else if zone == .bottom {
-                // If moving vertically up from the bottom edge, cancel
-                if dy > 0.025 && dy > (absDx * 1.5) {
+                // Gating for bottom edge:
+                // If moving vertically upwards from the bottom strip into trackpad center:
+                if dy > 0.020 && dy > (absDx * 1.2) {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
-                // Only engage horizontal swipe after moving ~5mm horizontally along the bottom strip
-                if absDx >= horizontalSwipeDistance && absDx >= absDy {
+                // Engage horizontal media skip when swiping horizontally across the bottom strip
+                if absDx >= 0.030 && absDx >= absDy {
+                    if !hasFiredMediaSkipForCurrentSlide {
+                        delegate?.slideEngineDidSkipMediaTrack(forward: dx > 0)
+                        hasFiredMediaSkipForCurrentSlide = true
+                    }
                     phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                     startSlide()
-                    processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
                 }
             }
             
@@ -184,20 +194,20 @@ public final class SlideEngine {
                 endSlide(cancelled: false)
                 phase = .idle
             } else {
-                // If a side-edge slide drifts off the edge into the main trackpad area, cancel it
-                if zone == .left && contact.x > (Float(settings.edgeWidthFraction) * 1.35) {
+                // If a side-edge slide wanders excessively into the middle of the pad, cancel it
+                if zone == .left && contact.x > Float(settings.edgeWidthFraction) * 1.5 {
                     endSlide(cancelled: true)
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
-                if (zone == .right || zone == .topRightCorner) && contact.x < (1.0 - Float(settings.edgeWidthFraction) * 1.35) {
+                if (zone == .right || zone == .topRightCorner) && contact.x < (1.0 - Float(settings.edgeWidthFraction) * 1.5) {
                     endSlide(cancelled: true)
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
-                if zone == .bottom && contact.y > (Float(settings.edgeHeightFraction) * 1.35) {
+                if zone == .bottom && contact.y > Float(settings.edgeHeightFraction) * 1.5 {
                     endSlide(cancelled: true)
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
@@ -217,7 +227,6 @@ public final class SlideEngine {
     
     private func startSlide() {
         isSlidingActive = true
-        hasFiredMediaSkipForCurrentSlide = false
         delegate?.slideEngineSlideStateChanged(isSliding: true)
     }
     
@@ -264,20 +273,7 @@ public final class SlideEngine {
                 delegate?.slideEngineDidAdjustBrightness(delta: effectiveDeltaY, isPrecise: isPrecise)
             }
             
-        case .bottom:
-            // Bottom Edge: Strictly horizontal media track skip
-            // Ensures exactly one track skip per distinct swipe gesture
-            if !hasFiredMediaSkipForCurrentSlide {
-                if deltaX > 0.025 {
-                    delegate?.slideEngineDidSkipMediaTrack(forward: true)
-                    hasFiredMediaSkipForCurrentSlide = true
-                } else if deltaX < -0.025 {
-                    delegate?.slideEngineDidSkipMediaTrack(forward: false)
-                    hasFiredMediaSkipForCurrentSlide = true
-                }
-            }
-            
-        case .middle:
+        case .bottom, .middle:
             break
         }
     }
