@@ -73,7 +73,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     // MARK: - SlideEngineDelegate
     public func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {
         let current = DisplayBrightnessBridge.shared.getBrightness()
-        let multiplier: Float = isPrecise ? 0.3 : 0.8
+        let multiplier: Float = isPrecise ? 0.35 : 0.8
         let updated = max(0.0, min(1.0, current + delta * multiplier))
         DisplayBrightnessBridge.shared.setBrightness(updated)
         
@@ -87,7 +87,8 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
         let current = CoreAudioBridge.shared.getVolume()
-        let multiplier: Float = isPrecise ? 0.3 : 0.8
+        // Responsive gain: 1.25x matches finger travel velocity to brightness speed
+        let multiplier: Float = isPrecise ? 0.35 : 1.25
         let updated = max(0.0, min(1.0, current + delta * multiplier))
         CoreAudioBridge.shared.setVolume(updated)
         
@@ -102,8 +103,10 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     public func slideEngineDidSkipMediaTrack(forward: Bool) {
         if forward {
             MediaKeyDispatcher.shared.nextTrack()
+            EdgeBarHUDOverlay.shared.show(.media(message: "Next Track", icon: "forward.fill"))
         } else {
             MediaKeyDispatcher.shared.previousTrack()
+            EdgeBarHUDOverlay.shared.show(.media(message: "Previous Track", icon: "backward.fill"))
         }
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.tick()
@@ -112,6 +115,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     public func slideEngineDidPlayPause() {
         MediaKeyDispatcher.shared.playPause()
+        EdgeBarHUDOverlay.shared.show(.media(message: "Play / Pause", icon: "playpause.fill"))
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.alignment()
         }

@@ -9,19 +9,21 @@ final class EdgeZoneTests: XCTestCase {
         XCTAssertEqual(classifier.classify(x: 0.5, y: 0.5), .middle)
         XCTAssertEqual(classifier.classify(x: 0.3, y: 0.7), .middle)
         
-        // Left edge strip
+        // Left edge strip (vertical display brightness)
         XCTAssertEqual(classifier.classify(x: 0.05, y: 0.5), .left)
         XCTAssertEqual(classifier.classify(x: 0.18, y: 0.5), .left)
         
-        // Right edge strip
+        // Right edge strip (vertical volume)
         XCTAssertEqual(classifier.classify(x: 0.95, y: 0.5), .right)
         XCTAssertEqual(classifier.classify(x: 0.82, y: 0.5), .right)
         
-        // Bottom edge strip
+        // Bottom edge strip (horizontal media control strip across the whole bottom)
         XCTAssertEqual(classifier.classify(x: 0.5, y: 0.05), .bottom)
         XCTAssertEqual(classifier.classify(x: 0.5, y: 0.18), .bottom)
+        XCTAssertEqual(classifier.classify(x: 0.05, y: 0.05), .bottom)
+        XCTAssertEqual(classifier.classify(x: 0.95, y: 0.05), .bottom)
         
-        // Top-right corner
+        // Top-right corner (double tap mute)
         XCTAssertEqual(classifier.classify(x: 0.9, y: 0.9), .topRightCorner)
         XCTAssertEqual(classifier.classify(x: 0.85, y: 0.85), .topRightCorner)
     }

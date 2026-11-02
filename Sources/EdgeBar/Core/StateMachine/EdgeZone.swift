@@ -24,28 +24,28 @@ public struct EdgeClassifier {
     }
     
     public func classify(x: Float, y: Float) -> EdgeZone {
-        // 1. Top-Right Corner (compact area dedicated for double-tap mute)
+        // 1. Top-Right Corner (dedicated area for double-tap mute)
         if x >= (1.0 - cornerSize) && y >= (1.0 - cornerSize) {
             return .topRightCorner
         }
         
-        // 2. Left Edge strip (dedicated column for display brightness)
+        // 2. Bottom Edge strip: dedicated horizontal media control strip across the entire bottom!
+        // Prioritizing this ensures swiping to skip tracks is never stolen by left/right edge columns.
+        if y <= edgeHeight {
+            return .bottom
+        }
+        
+        // 3. Left Edge strip (dedicated column for display brightness)
         if x <= edgeWidth {
             return .left
         }
         
-        // 3. Right Edge strip (dedicated column for volume)
+        // 4. Right Edge strip (dedicated column for volume)
         if x >= (1.0 - edgeWidth) {
             return .right
         }
         
-        // 4. Bottom Edge strip: ONLY the bottom area BETWEEN left and right strips!
-        // This strictly prevents the left and right sliders from interfering with media skipping.
-        if y <= edgeHeight && x > edgeWidth && x < (1.0 - edgeWidth) {
-            return .bottom
-        }
-        
-        // 5. Standard trackpad surface (for macOS gestures and mouse movement)
+        // 5. Standard trackpad surface (normal macOS cursor movement and gestures)
         return .middle
     }
 }
