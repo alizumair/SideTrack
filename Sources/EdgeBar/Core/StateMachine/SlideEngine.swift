@@ -129,10 +129,15 @@ public final class SlideEngine {
             let duration = timestamp - startTime
             
             if contact.state.isTerminating {
-                // Finger lifted while still a candidate: check if it's a tap
-                let tapThreshold: Float = 0.025
-                if movement < tapThreshold && duration < settings.doubleTapMaxInterval {
-                    handleTap(zone: zone, x: contact.x, y: contact.y, timestamp: timestamp)
+                // If the user performed a quick flick swipe along the bottom strip before releasing:
+                if zone == .bottom && absDx >= 0.020 && absDx > absDy {
+                    delegate?.slideEngineDidSkipMediaTrack(forward: dx > 0)
+                } else {
+                    // Finger lifted while still in candidate: check if it's a tap
+                    let tapThreshold: Float = 0.020
+                    if movement < tapThreshold && duration < settings.doubleTapMaxInterval {
+                        handleTap(zone: zone, x: contact.x, y: contact.y, timestamp: timestamp)
+                    }
                 }
                 phase = .idle
                 return
@@ -144,10 +149,10 @@ public final class SlideEngine {
                 let isMovingInward: Bool
                 if zone == .left {
                     // Left edge moving towards center: dx > 0
-                    isMovingInward = dx > 0.025 && dx > (absDy * 1.3)
+                    isMovingInward = dx > 0.035 && dx > (absDy * 1.8)
                 } else {
                     // Right edge moving towards center: dx < 0
-                    isMovingInward = dx < -0.025 && (-dx) > (absDy * 1.3)
+                    isMovingInward = dx < -0.035 && (-dx) > (absDy * 1.8)
                 }
                 
                 if isMovingInward {
@@ -165,15 +170,15 @@ public final class SlideEngine {
                 }
             } else if zone == .bottom {
                 // Gating for bottom edge:
-                // If moving vertically upwards from the bottom strip into trackpad center:
-                if dy > 0.025 && dy > (absDx * 1.3) {
+                // Only reject if moving predominantly upwards from the bottom strip into trackpad center:
+                if dy > 0.040 && dy > (absDx * 1.8) {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
                 // Engage horizontal media skip when swiping horizontally across the bottom strip
-                if absDx >= 0.030 && absDx >= absDy {
+                if absDx >= 0.020 && absDx >= absDy {
                     if !hasFiredMediaSkipForCurrentSlide {
                         delegate?.slideEngineDidSkipMediaTrack(forward: dx > 0)
                         hasFiredMediaSkipForCurrentSlide = true

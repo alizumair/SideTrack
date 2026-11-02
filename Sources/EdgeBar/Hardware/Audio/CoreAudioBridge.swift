@@ -13,6 +13,11 @@ public final class CoreAudioBridge {
     private var isMutedCache: Bool = false
     private let lock = NSLock()
     
+    // Dedicated background audio worker for low-latency asynchronous hardware writes
+    private let audioQueue = DispatchQueue(label: "io.github.edgebar.coreaudio", qos: .userInteractive)
+    private var pendingHardwareVolume: Float32? = nil
+    private var isApplyingVolume: Bool = false
+    
     private init() {
         refreshAudioDevice()
         registerListeners()
@@ -20,8 +25,6 @@ public final class CoreAudioBridge {
     
     public func refreshAudioDevice() {
         lock.lock()
-        defer { lock.unlock() }
-        
         var deviceID = AudioDeviceID(kAudioDeviceUnknown)
         var propertySize = UInt32(MemoryLayout<AudioDeviceID>.size)
         var propertyAddress = AudioObjectPropertyAddress(
@@ -40,12 +43,18 @@ public final class CoreAudioBridge {
         )
         
         guard status == noErr, deviceID != kAudioDeviceUnknown else {
+            lock.unlock()
             return
         }
         
         self.defaultOutputDeviceID = deviceID
         self.cachedVolume = readHardwareVolume(deviceID: deviceID)
         self.isMutedCache = readHardwareMute(deviceID: deviceID)
+        let vol = self.cachedVolume
+        let muted = self.isMutedCache
+        lock.unlock()
+        
+        onVolumeChanged?(vol, muted)
     }
     
     private func registerListeners() {
@@ -68,7 +77,7 @@ public final class CoreAudioBridge {
         var volume: Float32 = 0.5
         var size = UInt32(MemoryLayout<Float32>.size)
         
-        // Master
+        // 1. Try master element
         var masterAddress = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyVolumeScalar,
             mScope: kAudioDevicePropertyScopeOutput,
@@ -78,19 +87,20 @@ public final class CoreAudioBridge {
             return volume
         }
         
-        // Stereo channels 1 & 2
+        // 2. Try stereo channels 1 & 2 (AirPods, headphones, built-in speakers)
         for ch: UInt32 in 1...2 {
             var chAddress = AudioObjectPropertyAddress(
                 mSelector: kAudioDevicePropertyVolumeScalar,
                 mScope: kAudioDevicePropertyScopeOutput,
                 mElement: ch
             )
+            size = UInt32(MemoryLayout<Float32>.size) // Must reset size before each call
             if AudioObjectGetPropertyData(deviceID, &chAddress, 0, nil, &size, &volume) == noErr {
                 return volume
             }
         }
         
-        return 0.5
+        return cachedVolume
     }
     
     private func readHardwareMute(deviceID: AudioDeviceID) -> Bool {
@@ -114,64 +124,93 @@ public final class CoreAudioBridge {
     }
     
     public func setVolume(_ volume: Float32) {
-        lock.lock()
-        
-        // Always query the live default output device ID to prevent stale device references
-        var deviceID = AudioDeviceID(kAudioDeviceUnknown)
-        var propertySize = UInt32(MemoryLayout<AudioDeviceID>.size)
-        var propertyAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        if AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &propertyAddress, 0, nil, &propertySize, &deviceID) == noErr {
-            self.defaultOutputDeviceID = deviceID
-        } else {
-            deviceID = self.defaultOutputDeviceID
-        }
-        
-        guard deviceID != kAudioDeviceUnknown else {
-            lock.unlock()
-            return
-        }
-        
         let clamped = max(0.0, min(1.0, volume))
+        
+        lock.lock()
         cachedVolume = clamped
-        var vol = clamped
-        let size = UInt32(MemoryLayout<Float32>.size)
-        
-        // Apply direct scalar volume to Master (if available)
-        var masterAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyVolumeScalar,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        _ = AudioObjectSetPropertyData(deviceID, &masterAddress, 0, nil, size, &vol)
-        
-        // Apply direct scalar volume to Stereo Channels 1 & 2 (AirPods, headphones, built-in speakers)
-        for ch: UInt32 in 1...2 {
-            var chAddress = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyVolumeScalar,
-                mScope: kAudioDevicePropertyScopeOutput,
-                mElement: ch
-            )
-            _ = AudioObjectSetPropertyData(deviceID, &chAddress, 0, nil, size, &vol)
-        }
+        pendingHardwareVolume = clamped
         
         let wasMuted = isMutedCache
         if clamped > 0.001 && wasMuted {
             isMutedCache = false
-            var zero: UInt32 = 0
-            var muteAddress = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyMute,
+        }
+        
+        if !isApplyingVolume {
+            isApplyingVolume = true
+            lock.unlock()
+            audioQueue.async { [weak self] in
+                self?.processPendingVolume()
+            }
+        } else {
+            lock.unlock()
+        }
+        
+        onVolumeChanged?(clamped, isMutedCache)
+    }
+    
+    private func processPendingVolume() {
+        while true {
+            lock.lock()
+            guard let target = pendingHardwareVolume else {
+                isApplyingVolume = false
+                lock.unlock()
+                return
+            }
+            pendingHardwareVolume = nil
+            var deviceID = self.defaultOutputDeviceID
+            lock.unlock()
+            
+            // Validate / refresh deviceID if needed
+            if deviceID == kAudioDeviceUnknown {
+                var dev = AudioDeviceID(kAudioDeviceUnknown)
+                var propSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+                var propAddress = AudioObjectPropertyAddress(
+                    mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                    mScope: kAudioObjectPropertyScopeGlobal,
+                    mElement: kAudioObjectPropertyElementMain
+                )
+                if AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &propAddress, 0, nil, &propSize, &dev) == noErr {
+                    deviceID = dev
+                    lock.lock()
+                    self.defaultOutputDeviceID = dev
+                    lock.unlock()
+                }
+            }
+            
+            guard deviceID != kAudioDeviceUnknown else { continue }
+            
+            var vol = target
+            let size = UInt32(MemoryLayout<Float32>.size)
+            
+            // Set Master (if available)
+            var masterAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyVolumeScalar,
                 mScope: kAudioDevicePropertyScopeOutput,
                 mElement: kAudioObjectPropertyElementMain
             )
-            _ = AudioObjectSetPropertyData(deviceID, &muteAddress, 0, nil, UInt32(MemoryLayout<UInt32>.size), &zero)
+            _ = AudioObjectSetPropertyData(deviceID, &masterAddress, 0, nil, size, &vol)
+            
+            // Set Channels 1 & 2 (AirPods Pro, headphones, stereo speakers)
+            for ch: UInt32 in 1...2 {
+                var chAddress = AudioObjectPropertyAddress(
+                    mSelector: kAudioDevicePropertyVolumeScalar,
+                    mScope: kAudioDevicePropertyScopeOutput,
+                    mElement: ch
+                )
+                _ = AudioObjectSetPropertyData(deviceID, &chAddress, 0, nil, size, &vol)
+            }
+            
+            // Ensure unmute if volume > 0
+            if target > 0.001 {
+                var zero: UInt32 = 0
+                var muteAddress = AudioObjectPropertyAddress(
+                    mSelector: kAudioDevicePropertyMute,
+                    mScope: kAudioDevicePropertyScopeOutput,
+                    mElement: kAudioObjectPropertyElementMain
+                )
+                _ = AudioObjectSetPropertyData(deviceID, &muteAddress, 0, nil, UInt32(MemoryLayout<UInt32>.size), &zero)
+            }
         }
-        lock.unlock()
-        
-        onVolumeChanged?(clamped, isMutedCache)
     }
     
     public func isMuted() -> Bool {

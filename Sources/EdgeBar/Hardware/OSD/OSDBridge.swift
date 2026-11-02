@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import QuartzCore
 import ObjectiveC
 
 public enum OSDType: Int64 {
@@ -27,6 +28,14 @@ public final class OSDBridge {
     private var showChicletsFn: OSDShowChicletsFunc?
     private var chicletsSelector: Selector?
     private var isAvailable: Bool = false
+    
+    private var lastVolumeChiclets: UInt32 = .max
+    private var lastVolumeMuted: Bool = false
+    private var lastVolumeShowTime: Double = 0
+    
+    private var lastBrightnessChiclets: UInt32 = .max
+    private var lastBrightnessShowTime: Double = 0
+    private let osdLock = NSLock()
     
     private init() {
         setup()
@@ -67,6 +76,18 @@ public final class OSDBridge {
         let totalChiclets: UInt32 = 16
         let filledChiclets = muted ? 0 : UInt32(round(max(0.0, min(1.0, level)) * Float(totalChiclets)))
         let type: Int64 = muted ? OSDType.mute.rawValue : OSDType.volume.rawValue
+        let now = CACurrentMediaTime()
+        
+        osdLock.lock()
+        // Chiclet throttling: Only notify OSD if chiclets changed, mute state toggled, or 250ms passed to refresh fade timer
+        if filledChiclets == lastVolumeChiclets && muted == lastVolumeMuted && (now - lastVolumeShowTime) < 0.25 {
+            osdLock.unlock()
+            return
+        }
+        lastVolumeChiclets = filledChiclets
+        lastVolumeMuted = muted
+        lastVolumeShowTime = now
+        osdLock.unlock()
         
         fn(manager, sel, type, CGMainDisplayID(), 0x1f4, 1000, filledChiclets, totalChiclets, false)
     }
@@ -77,6 +98,17 @@ public final class OSDBridge {
         }
         let totalChiclets: UInt32 = 16
         let filledChiclets = UInt32(round(max(0.0, min(1.0, level)) * Float(totalChiclets)))
+        let now = CACurrentMediaTime()
+        
+        osdLock.lock()
+        // Chiclet throttling: Only notify OSD if chiclets changed or 250ms passed
+        if filledChiclets == lastBrightnessChiclets && (now - lastBrightnessShowTime) < 0.25 {
+            osdLock.unlock()
+            return
+        }
+        lastBrightnessChiclets = filledChiclets
+        lastBrightnessShowTime = now
+        osdLock.unlock()
         
         fn(manager, sel, OSDType.brightness.rawValue, CGMainDisplayID(), 0x1f4, 1000, filledChiclets, totalChiclets, false)
     }

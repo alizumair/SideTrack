@@ -36,7 +36,7 @@ public final class EdgeBarHUDOverlay {
             backing: .buffered,
             defer: true
         )
-        panel.level = .floating
+        panel.level = .statusBar
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
@@ -76,14 +76,14 @@ public final class EdgeBarHUDOverlay {
                 self.stateObject.detailText = ""
             }
             
-            guard let window = self.window, let screen = NSScreen.main else { return }
+            guard let window = self.window, let screen = NSScreen.main ?? NSScreen.screens.first else { return }
             let screenRect = screen.visibleFrame
             let x = screenRect.midX - 100
             let y = screenRect.minY + 120
             window.setFrameOrigin(NSPoint(x: x, y: y))
             
             window.alphaValue = 1.0
-            window.orderFront(nil)
+            window.orderFrontRegardless()
             
             let item = DispatchWorkItem { [weak self] in
                 guard let self = self, let win = self.window else { return }
