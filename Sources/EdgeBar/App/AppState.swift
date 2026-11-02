@@ -70,37 +70,50 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         slideEngine.processFrame(contacts: contacts, timestamp: timestamp)
     }
     
+    private var lastVolumeOSDTime: Double = 0.0
+    private var lastBrightnessOSDTime: Double = 0.0
+    
     // MARK: - SlideEngineDelegate
     public func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {
         let current = DisplayBrightnessBridge.shared.getBrightness()
-        let updated = max(0.0, min(1.0, current + delta))
+        let scaledDelta = delta * 1.8
+        let updated = max(0.0, min(1.0, current + scaledDelta))
         DisplayBrightnessBridge.shared.setBrightness(updated)
         
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
         }
         
-        if settingsStore.settings.useSystemOSD {
-            OSDBridge.shared.showBrightness(level: updated)
-        } else if settingsStore.settings.showHUDOverlay {
-            EdgeBarHUDOverlay.shared.show(.brightness(level: updated))
+        let now = CACurrentMediaTime()
+        if now - lastBrightnessOSDTime >= 0.035 {
+            lastBrightnessOSDTime = now
+            if settingsStore.settings.useSystemOSD {
+                OSDBridge.shared.showBrightness(level: updated)
+            } else if settingsStore.settings.showHUDOverlay {
+                EdgeBarHUDOverlay.shared.show(.brightness(level: updated))
+            }
         }
     }
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
         let current = CoreAudioBridge.shared.getVolume()
-        let updated = max(0.0, min(1.0, current + delta))
+        let scaledDelta = delta * 1.8
+        let updated = max(0.0, min(1.0, current + scaledDelta))
         CoreAudioBridge.shared.setVolume(updated)
         
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
         }
         
-        let muted = CoreAudioBridge.shared.isMuted()
-        if settingsStore.settings.useSystemOSD {
-            OSDBridge.shared.showVolume(level: updated, muted: muted)
-        } else if settingsStore.settings.showHUDOverlay {
-            EdgeBarHUDOverlay.shared.show(.volume(level: updated, isMuted: muted))
+        let now = CACurrentMediaTime()
+        if now - lastVolumeOSDTime >= 0.035 {
+            lastVolumeOSDTime = now
+            let muted = CoreAudioBridge.shared.isMuted()
+            if settingsStore.settings.useSystemOSD {
+                OSDBridge.shared.showVolume(level: updated, muted: muted)
+            } else if settingsStore.settings.showHUDOverlay {
+                EdgeBarHUDOverlay.shared.show(.volume(level: updated, isMuted: muted))
+            }
         }
     }
     

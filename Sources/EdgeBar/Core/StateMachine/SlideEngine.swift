@@ -63,9 +63,6 @@ public final class SlideEngine {
                 endSlide(cancelled: true)
                 phase = .cancelled
             }
-            for c in contacts {
-                ignoredTouchIDs.insert(c.id)
-            }
             return
         }
         
@@ -85,7 +82,6 @@ public final class SlideEngine {
         
         // If we previously entered cancelled state due to multi-finger, wait until touch lifts
         if phase == .cancelled {
-            ignoredTouchIDs.insert(contact.id)
             if contact.state.isTerminating {
                 phase = .idle
             }
@@ -206,8 +202,8 @@ public final class SlideEngine {
                 delegate?.slideEngineDidAdjustVolume(delta: effectiveDeltaY, isPrecise: isPrecise)
             }
             
-        case .right:
-            // Right Edge: Smooth up/down sliding for System Volume
+        case .right, .topRightCorner:
+            // Right Edge & Corner sliding: Smooth up/down sliding for System Volume
             if settings.rightEdgeAction == .volume {
                 delegate?.slideEngineDidAdjustVolume(delta: effectiveDeltaY, isPrecise: isPrecise)
             } else if settings.rightEdgeAction == .brightness {
@@ -226,7 +222,7 @@ public final class SlideEngine {
                 accumulatedBottomSwipeDelta = 0.0
             }
             
-        case .topRightCorner, .middle:
+        case .middle:
             break
         }
     }

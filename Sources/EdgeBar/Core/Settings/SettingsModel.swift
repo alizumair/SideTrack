@@ -28,7 +28,7 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     // Edges
     public var edgeWidthFraction: Double = 0.18        // 18% outer horizontal edge
     public var edgeHeightFraction: Double = 0.18       // 18% outer bottom edge
-    public var cornerZoneFraction: Double = 0.20       // 20% corner box
+    public var cornerZoneFraction: Double = 0.12       // 12% corner box (compact for tap targets)
     public var leftEdgeAction: EdgeAction = .brightness
     public var rightEdgeAction: EdgeAction = .volume
     public var bottomEdgeAction: EdgeAction = .mediaTrack
@@ -48,7 +48,7 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     public var showHUDOverlay: Bool = true
     public var useSystemOSD: Bool = true
     public var doubleTapMaxInterval: Double = 0.35
-    public var maxTapMovementThreshold: Double = 0.04
+    public var maxTapMovementThreshold: Double = 0.015 // Tight tap boundary (~1.5mm)
     
     // General
     public var launchAtLogin: Bool = false
