@@ -144,10 +144,10 @@ public final class SlideEngine {
                 let isMovingInward: Bool
                 if zone == .left {
                     // Left edge moving towards center: dx > 0
-                    isMovingInward = dx > 0.020 && dx > (absDy * 1.2)
+                    isMovingInward = dx > 0.030 && dx > (absDy * 1.5)
                 } else {
                     // Right edge moving towards center: dx < 0
-                    isMovingInward = dx < -0.020 && (-dx) > (absDy * 1.2)
+                    isMovingInward = dx < -0.030 && (-dx) > (absDy * 1.5)
                 }
                 
                 if isMovingInward {
@@ -157,8 +157,8 @@ public final class SlideEngine {
                     return
                 }
                 
-                // Engage vertical sliding along the edge when vertical movement passes threshold
-                if absDy >= 0.015 && absDy >= absDx {
+                // Engage vertical sliding along the edge when vertical movement passes threshold (~0.8mm)
+                if absDy >= 0.010 && absDy >= absDx {
                     phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                     startSlide()
                     processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
@@ -166,14 +166,14 @@ public final class SlideEngine {
             } else if zone == .bottom {
                 // Gating for bottom edge:
                 // If moving vertically upwards from the bottom strip into trackpad center:
-                if dy > 0.020 && dy > (absDx * 1.2) {
+                if dy > 0.030 && dy > (absDx * 1.5) {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
                 // Engage horizontal media skip when swiping horizontally across the bottom strip
-                if absDx >= 0.030 && absDx >= absDy {
+                if absDx >= 0.025 && absDx >= absDy {
                     if !hasFiredMediaSkipForCurrentSlide {
                         delegate?.slideEngineDidSkipMediaTrack(forward: dx > 0)
                         hasFiredMediaSkipForCurrentSlide = true

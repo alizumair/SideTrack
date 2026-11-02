@@ -16,10 +16,10 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     // Accumulators for discrete step tracking (calm, predictable stepping across trackpad)
     private var accumulatedVolumeTravel: Float = 0.0
-    private let travelPerVolumeStep: Float = 0.045 // ~6mm slide per macOS volume tick
+    private let travelPerVolumeStep: Float = 0.032 // ~2.5mm slide per macOS volume tick
     
     private var accumulatedBrightnessTravel: Float = 0.0
-    private let travelPerBrightnessStep: Float = 0.045 // ~6mm slide per macOS brightness tick
+    private let travelPerBrightnessStep: Float = 0.032 // ~2.5mm slide per macOS brightness tick
     
     public init(settingsStore: SettingsStore = .shared) {
         self.settingsStore = settingsStore

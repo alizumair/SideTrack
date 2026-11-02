@@ -12,23 +12,24 @@ public final class MultitouchBridge {
     
     private typealias MTContactCallbackFunction = @convention(c) (OpaquePointer?, UnsafeMutableRawPointer?, Int32, Double, Int32) -> Int32
     private typealias MTDeviceCreateListType = @convention(c) () -> Unmanaged<CFArray>?
+    private typealias MTDeviceCreateDefaultType = @convention(c) () -> OpaquePointer?
     private typealias MTRegisterContactFrameCallbackType = @convention(c) (OpaquePointer, MTContactCallbackFunction) -> Void
     private typealias MTUnregisterContactFrameCallbackType = @convention(c) (OpaquePointer, MTContactCallbackFunction) -> Void
     private typealias MTDeviceStartType = @convention(c) (OpaquePointer, Int32) -> Void
     private typealias MTDeviceStopType = @convention(c) (OpaquePointer, Int32) -> Void
-    private typealias MTDeviceIsBuiltInType = @convention(c) (OpaquePointer) -> Bool
+    private typealias MTDeviceScheduleOnRunLoopType = @convention(c) (OpaquePointer, CFRunLoop, CFString) -> Void
     
     private var frameworkHandle: UnsafeMutableRawPointer?
     private var createListFn: MTDeviceCreateListType?
+    private var createDefaultFn: MTDeviceCreateDefaultType?
     private var registerCallbackFn: MTRegisterContactFrameCallbackType?
     private var unregisterCallbackFn: MTUnregisterContactFrameCallbackType?
     private var startDeviceFn: MTDeviceStartType?
     private var stopDeviceFn: MTDeviceStopType?
-    private var isBuiltInFn: MTDeviceIsBuiltInType?
+    private var scheduleRunLoopFn: MTDeviceScheduleOnRunLoopType?
     
     private var activeDevices: [OpaquePointer] = []
     private var isRunning: Bool = false
-    private let queue = DispatchQueue(label: "io.github.edgebar.multitouch", qos: .userInteractive)
     
     private init() {
         loadFramework()
@@ -52,6 +53,9 @@ public final class MultitouchBridge {
         if let sym = dlsym(handle, "MTDeviceCreateList") {
             createListFn = unsafeBitCast(sym, to: MTDeviceCreateListType.self)
         }
+        if let sym = dlsym(handle, "MTDeviceCreateDefault") {
+            createDefaultFn = unsafeBitCast(sym, to: MTDeviceCreateDefaultType.self)
+        }
         if let sym = dlsym(handle, "MTRegisterContactFrameCallback") {
             registerCallbackFn = unsafeBitCast(sym, to: MTRegisterContactFrameCallbackType.self)
         }
@@ -64,56 +68,60 @@ public final class MultitouchBridge {
         if let sym = dlsym(handle, "MTDeviceStop") {
             stopDeviceFn = unsafeBitCast(sym, to: MTDeviceStopType.self)
         }
-        if let sym = dlsym(handle, "MTDeviceIsBuiltIn") {
-            isBuiltInFn = unsafeBitCast(sym, to: MTDeviceIsBuiltInType.self)
+        if let sym = dlsym(handle, "MTDeviceScheduleOnRunLoop") {
+            scheduleRunLoopFn = unsafeBitCast(sym, to: MTDeviceScheduleOnRunLoopType.self)
         }
     }
     
     public func start() {
-        queue.async { [weak self] in
+        DispatchQueue.main.async { [weak self] in
             guard let self = self, !self.isRunning else { return }
-            guard let createList = self.createListFn,
-                  let registerCb = self.registerCallbackFn,
+            guard let registerCb = self.registerCallbackFn,
                   let startDev = self.startDeviceFn else {
                 NSLog("[EdgeBar] Multitouch function pointers not loaded")
                 return
             }
             
-            guard let cfList = createList()?.takeRetainedValue() else {
-                NSLog("[EdgeBar] MTDeviceCreateList returned nil")
-                return
-            }
-            
-            let count = CFArrayGetCount(cfList)
             var devices: [OpaquePointer] = []
-            for i in 0..<count {
-                if let devPtr = CFArrayGetValueAtIndex(cfList, i) {
-                    let dev = OpaquePointer(devPtr)
-                    devices.append(dev)
-                    registerCb(dev, MultitouchBridge.frameCallback)
-                    startDev(dev, 0)
+            if let createList = self.createListFn, let cfList = createList()?.takeRetainedValue() {
+                let count = CFArrayGetCount(cfList)
+                for i in 0..<count {
+                    if let devPtr = CFArrayGetValueAtIndex(cfList, i) {
+                        devices.append(OpaquePointer(devPtr))
+                    }
                 }
             }
+            
+            if devices.isEmpty, let createDefault = self.createDefaultFn, let dev = createDefault() {
+                devices.append(dev)
+            }
+            
+            for dev in devices {
+                registerCb(dev, MultitouchBridge.frameCallback)
+                if let schedule = self.scheduleRunLoopFn {
+                    schedule(dev, CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue)
+                }
+                startDev(dev, 0)
+            }
+            
             self.activeDevices = devices
             self.isRunning = true
-            NSLog("[EdgeBar] Multitouch monitoring started on %d device(s)", count)
+            NSLog("[EdgeBar] Multitouch monitoring active on %d device(s)", devices.count)
         }
     }
     
     public func stop() {
-        queue.sync {
-            guard isRunning else { return }
-            guard let stopDev = stopDeviceFn,
-                  let unregisterCb = unregisterCallbackFn else { return }
-            
-            for dev in activeDevices {
-                stopDev(dev, 0)
-                unregisterCb(dev, MultitouchBridge.frameCallback)
-            }
-            activeDevices.removeAll()
-            isRunning = false
-            NSLog("[EdgeBar] Multitouch monitoring stopped")
+        guard isRunning else { return }
+        guard let stopDev = stopDeviceFn,
+              let unregisterCb = unregisterCallbackFn else { return }
+        
+        for dev in activeDevices {
+            stopDev(dev, 0)
+            unregisterCb(dev, MultitouchBridge.frameCallback)
         }
+        activeDevices.removeAll()
+        isRunning = false
+        NSLog("[EdgeBar] Multitouch monitoring stopped")
     }
     
     fileprivate func processContacts(_ contacts: [TrackpadContact], timestamp: Double, frame: Int32) {
