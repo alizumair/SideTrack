@@ -17,39 +17,63 @@ public enum MediaKey: Int32 {
 public final class MediaKeyDispatcher {
     public static let shared = MediaKeyDispatcher()
     
-    private init() {}
+    private typealias MRMediaRemoteSendCommandFunction = @convention(c) (Int32, AnyObject?) -> DarwinBoolean
+    private var sendMediaRemoteCommand: MRMediaRemoteSendCommandFunction?
     
-    public func send(key: MediaKey) {
-        postKey(key.rawValue, down: true)
-        postKey(key.rawValue, down: false)
+    private init() {
+        if let handle = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW) {
+            if let sym = dlsym(handle, "MRMediaRemoteSendCommand") {
+                sendMediaRemoteCommand = unsafeBitCast(sym, to: MRMediaRemoteSendCommandFunction.self)
+            }
+        }
     }
     
     public func playPause() {
-        send(key: .playPause)
+        if let sendMR = sendMediaRemoteCommand {
+            _ = sendMR(2, nil) // kMRTogglePlayPause = 2
+        }
+        postKey(MediaKey.playPause.rawValue, down: true)
+        postKey(MediaKey.playPause.rawValue, down: false)
     }
     
     public func nextTrack() {
-        send(key: .nextTrack)
+        if let sendMR = sendMediaRemoteCommand {
+            _ = sendMR(4, nil) // kMRNextTrack = 4
+        }
+        postKey(MediaKey.nextTrack.rawValue, down: true)
+        postKey(MediaKey.nextTrack.rawValue, down: false)
+        postKey(MediaKey.fastForward.rawValue, down: true)
+        postKey(MediaKey.fastForward.rawValue, down: false)
     }
     
     public func previousTrack() {
-        send(key: .previousTrack)
+        if let sendMR = sendMediaRemoteCommand {
+            _ = sendMR(5, nil) // kMRPreviousTrack = 5
+        }
+        postKey(MediaKey.previousTrack.rawValue, down: true)
+        postKey(MediaKey.previousTrack.rawValue, down: false)
+        postKey(MediaKey.rewind.rawValue, down: true)
+        postKey(MediaKey.rewind.rawValue, down: false)
     }
     
     public func volumeUp() {
-        send(key: .soundUp)
+        postKey(MediaKey.soundUp.rawValue, down: true)
+        postKey(MediaKey.soundUp.rawValue, down: false)
     }
     
     public func volumeDown() {
-        send(key: .soundDown)
+        postKey(MediaKey.soundDown.rawValue, down: true)
+        postKey(MediaKey.soundDown.rawValue, down: false)
     }
     
     public func brightnessUp() {
-        send(key: .brightnessUp)
+        postKey(MediaKey.brightnessUp.rawValue, down: true)
+        postKey(MediaKey.brightnessUp.rawValue, down: false)
     }
     
     public func brightnessDown() {
-        send(key: .brightnessDown)
+        postKey(MediaKey.brightnessDown.rawValue, down: true)
+        postKey(MediaKey.brightnessDown.rawValue, down: false)
     }
     
     private func postKey(_ keyCode: Int32, down: Bool) {

@@ -24,7 +24,7 @@ public final class SlideEngine {
     private var classifier: EdgeClassifier
     private var ignoredTouchIDs: Set<Int32> = []
     private var lastTap: RecordedTap?
-    private var accumulatedBottomSwipeDelta: Float = 0.0
+    private var hasFiredMediaSkipForCurrentSlide: Bool = false
     private var isSlidingActive: Bool = false
     
     // Test hook for simulating modifier flags without depending on UI events
@@ -56,8 +56,7 @@ public final class SlideEngine {
         }
         
         // 1. Intelligent Multi-finger Gate:
-        // If 2 or more fingers are on the pad, cancel any ongoing slide immediately
-        // and allow macOS native gestures (scrolling, mission control) to pass through.
+        // When 2 or more fingers are on the pad, pass through immediately to macOS for native scrolling.
         if contacts.count > 1 {
             if isSlidingActive || phase != .idle {
                 endSlide(cancelled: true)
@@ -73,7 +72,7 @@ public final class SlideEngine {
             }
             phase = .idle
             ignoredTouchIDs.removeAll()
-            accumulatedBottomSwipeDelta = 0.0
+            hasFiredMediaSkipForCurrentSlide = false
             return
         }
         
@@ -105,6 +104,7 @@ public final class SlideEngine {
                 ignoredTouchIDs.insert(contact.id)
                 return
             }
+            hasFiredMediaSkipForCurrentSlide = false
             phase = .candidate(
                 touchID: contact.id,
                 zone: zone,
@@ -115,7 +115,6 @@ public final class SlideEngine {
             
         case .candidate(let touchID, let zone, let startX, let startY, let startTime):
             guard contact.id == touchID else {
-                // Touch ID mismatch; reset
                 phase = .idle
                 return
             }
@@ -124,15 +123,15 @@ public final class SlideEngine {
             let dy = contact.y - startY
             let movement = hypot(dx, dy)
             let duration = timestamp - startTime
+            let tapThreshold = Float(settings.maxTapMovementThreshold)
             
             if contact.state.isTerminating {
                 // Finger lifted while still a candidate
-                let threshold = Float(settings.maxTapMovementThreshold)
-                if movement < threshold && duration < settings.doubleTapMaxInterval {
+                if movement < tapThreshold && duration < settings.doubleTapMaxInterval {
                     handleTap(zone: zone, x: contact.x, y: contact.y, timestamp: timestamp)
                 }
                 phase = .idle
-            } else if movement >= Float(settings.maxTapMovementThreshold) {
+            } else if movement >= tapThreshold {
                 // Movement threshold exceeded: Transition to confirmed sliding
                 phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                 startSlide()
@@ -163,13 +162,13 @@ public final class SlideEngine {
     
     private func startSlide() {
         isSlidingActive = true
-        accumulatedBottomSwipeDelta = 0.0
+        hasFiredMediaSkipForCurrentSlide = false
         delegate?.slideEngineSlideStateChanged(isSliding: true)
     }
     
     private func endSlide(cancelled: Bool) {
         isSlidingActive = false
-        accumulatedBottomSwipeDelta = 0.0
+        hasFiredMediaSkipForCurrentSlide = false
         delegate?.slideEngineSlideStateChanged(isSliding: false)
     }
     
@@ -195,7 +194,7 @@ public final class SlideEngine {
         
         switch zone {
         case .left:
-            // Left Edge: Smooth up/down sliding for Display Brightness
+            // Left Edge: Strictly Display Brightness
             if settings.leftEdgeAction == .brightness {
                 delegate?.slideEngineDidAdjustBrightness(delta: effectiveDeltaY, isPrecise: isPrecise)
             } else if settings.leftEdgeAction == .volume {
@@ -203,7 +202,7 @@ public final class SlideEngine {
             }
             
         case .right, .topRightCorner:
-            // Right Edge & Corner sliding: Smooth up/down sliding for System Volume
+            // Right Edge & Corner sliding: Strictly System Volume
             if settings.rightEdgeAction == .volume {
                 delegate?.slideEngineDidAdjustVolume(delta: effectiveDeltaY, isPrecise: isPrecise)
             } else if settings.rightEdgeAction == .brightness {
@@ -211,15 +210,17 @@ public final class SlideEngine {
             }
             
         case .bottom:
-            // Bottom Edge: Horizontal swipe for media track skipping
-            accumulatedBottomSwipeDelta += deltaX * sensitivity
-            let swipeThreshold: Float = 0.08 // 8% horizontal width
-            if accumulatedBottomSwipeDelta > swipeThreshold {
-                delegate?.slideEngineDidSkipMediaTrack(forward: true)
-                accumulatedBottomSwipeDelta = 0.0
-            } else if accumulatedBottomSwipeDelta < -swipeThreshold {
-                delegate?.slideEngineDidSkipMediaTrack(forward: false)
-                accumulatedBottomSwipeDelta = 0.0
+            // Bottom Edge: Strictly horizontal media track skip
+            // Ensures exactly one track skip per distinct swipe gesture
+            let swipeThreshold: Float = 0.045 // 4.5% horizontal swipe distance
+            if !hasFiredMediaSkipForCurrentSlide {
+                if deltaX > swipeThreshold {
+                    delegate?.slideEngineDidSkipMediaTrack(forward: true)
+                    hasFiredMediaSkipForCurrentSlide = true
+                } else if deltaX < -swipeThreshold {
+                    delegate?.slideEngineDidSkipMediaTrack(forward: false)
+                    hasFiredMediaSkipForCurrentSlide = true
+                }
             }
             
         case .middle:
