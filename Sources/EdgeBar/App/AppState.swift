@@ -14,10 +14,6 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     public let slideEngine: SlideEngine
     private var cancellables = Set<AnyCancellable>()
     
-    // Accumulators for discrete volume step tracking (~2.8mm per tick)
-    private var accumulatedVolumeTravel: Float = 0.0
-    private let travelPerVolumeStep: Float = 0.035
-    
     public init(settingsStore: SettingsStore = .shared) {
         self.settingsStore = settingsStore
         self.slideEngine = SlideEngine(settings: settingsStore.settings)
@@ -76,11 +72,13 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     // MARK: - SlideEngineDelegate
     public func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {
-        // Direct, smooth 120Hz display brightness adjustment
         let current = DisplayBrightnessBridge.shared.getBrightness()
         let multiplier: Float = isPrecise ? 0.3 : 0.8
         let updated = max(0.0, min(1.0, current + delta * multiplier))
         DisplayBrightnessBridge.shared.setBrightness(updated)
+        
+        // Show native macOS Brightness Sun HUD
+        OSDBridge.shared.showBrightness(level: updated)
         
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
@@ -88,32 +86,16 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     }
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
-        // Reset opposite accumulator when direction reverses
-        if delta > 0 && accumulatedVolumeTravel < 0 {
-            accumulatedVolumeTravel = 0
-        } else if delta < 0 && accumulatedVolumeTravel > 0 {
-            accumulatedVolumeTravel = 0
-        }
+        let current = CoreAudioBridge.shared.getVolume()
+        let multiplier: Float = isPrecise ? 0.3 : 0.8
+        let updated = max(0.0, min(1.0, current + delta * multiplier))
+        CoreAudioBridge.shared.setVolume(updated)
         
-        accumulatedVolumeTravel += delta
-        let step = isPrecise ? (travelPerVolumeStep * 2.0) : travelPerVolumeStep
+        // Show native macOS Volume Speaker HUD
+        OSDBridge.shared.showVolume(level: updated, muted: CoreAudioBridge.shared.isMuted())
         
-        if accumulatedVolumeTravel >= step {
-            while accumulatedVolumeTravel >= step {
-                accumulatedVolumeTravel -= step
-                MediaKeyDispatcher.shared.volumeUp()
-                if settingsStore.settings.hapticsEnabled {
-                    HapticFeedbackBridge.shared.tick()
-                }
-            }
-        } else if accumulatedVolumeTravel <= -step {
-            while accumulatedVolumeTravel <= -step {
-                accumulatedVolumeTravel += step
-                MediaKeyDispatcher.shared.volumeDown()
-                if settingsStore.settings.hapticsEnabled {
-                    HapticFeedbackBridge.shared.tick()
-                }
-            }
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
         }
     }
     
@@ -137,6 +119,9 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     public func slideEngineDidToggleMute() {
         CoreAudioBridge.shared.toggleMute()
+        let isMuted = CoreAudioBridge.shared.isMuted()
+        let current = CoreAudioBridge.shared.getVolume()
+        OSDBridge.shared.showVolume(level: current, muted: isMuted)
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.alignment()
         }
@@ -148,12 +133,10 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         }
         
         if isSliding {
-            accumulatedVolumeTravel = 0.0
             if settingsStore.settings.cursorFreezingEnabled {
                 CursorFreezer.shared.freeze()
             }
         } else {
-            accumulatedVolumeTravel = 0.0
             CursorFreezer.shared.unfreeze()
             HapticFeedbackBridge.shared.reset()
         }

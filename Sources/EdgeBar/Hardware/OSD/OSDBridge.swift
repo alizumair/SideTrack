@@ -3,9 +3,9 @@ import CoreGraphics
 import ObjectiveC
 
 public enum OSDType: Int64 {
-    case brightness = 1
-    case volume = 2
-    case mute = 3
+    case brightness = 1  // Native macOS Display Brightness Sun icon
+    case volume = 3      // Native macOS Audio Speaker icon
+    case mute = 4        // Native macOS Audio Muted icon
 }
 
 public final class OSDBridge {
@@ -14,7 +14,7 @@ public final class OSDBridge {
     private typealias OSDShowChicletsFunc = @convention(c) (
         AnyObject,
         Selector,
-        Int64,      // image / graphic type: 1 = Brightness, 2 = Volume, 3 = Mute
+        Int64,      // image / graphic type: 1 = Brightness, 3 = Volume, 4 = Mute
         UInt32,     // displayID
         UInt32,     // priority
         UInt32,     // msecUntilFade
@@ -68,7 +68,7 @@ public final class OSDBridge {
         let filledChiclets = muted ? 0 : UInt32(round(max(0.0, min(1.0, level)) * Float(totalChiclets)))
         let type: Int64 = muted ? OSDType.mute.rawValue : OSDType.volume.rawValue
         
-        fn(manager, sel, type, CGMainDisplayID(), 1, 800, filledChiclets, totalChiclets, false)
+        fn(manager, sel, type, CGMainDisplayID(), 0x1f4, 1000, filledChiclets, totalChiclets, false)
     }
     
     public func showBrightness(level: Float) {
@@ -78,6 +78,6 @@ public final class OSDBridge {
         let totalChiclets: UInt32 = 16
         let filledChiclets = UInt32(round(max(0.0, min(1.0, level)) * Float(totalChiclets)))
         
-        fn(manager, sel, OSDType.brightness.rawValue, CGMainDisplayID(), 1, 800, filledChiclets, totalChiclets, false)
+        fn(manager, sel, OSDType.brightness.rawValue, CGMainDisplayID(), 0x1f4, 1000, filledChiclets, totalChiclets, false)
     }
 }
