@@ -246,4 +246,87 @@ public final class CoreAudioBridge {
     public func toggleMute() {
         setMuted(!isMuted())
     }
+    
+    // MARK: - Microphone Input Gain
+    public func getInputGain() -> Float32 {
+        lock.lock()
+        defer { lock.unlock() }
+        var deviceID = AudioDeviceID(kAudioDeviceUnknown)
+        var propertySize = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &propertyAddress,
+            0,
+            nil,
+            &propertySize,
+            &deviceID
+        )
+        guard status == noErr, deviceID != kAudioDeviceUnknown else { return 0.5 }
+        
+        var volume: Float32 = 0.5
+        var size = UInt32(MemoryLayout<Float32>.size)
+        var volAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        if AudioObjectGetPropertyData(deviceID, &volAddress, 0, nil, &size, &volume) == noErr {
+            return max(0.0, min(1.0, volume))
+        }
+        
+        volAddress.mElement = 1
+        size = UInt32(MemoryLayout<Float32>.size)
+        if AudioObjectGetPropertyData(deviceID, &volAddress, 0, nil, &size, &volume) == noErr {
+            return max(0.0, min(1.0, volume))
+        }
+        
+        return 0.5
+    }
+    
+    public func setInputGain(_ value: Float32) {
+        let clamped = max(0.0, min(1.0, value))
+        audioQueue.async {
+            var deviceID = AudioDeviceID(kAudioDeviceUnknown)
+            var propertySize = UInt32(MemoryLayout<AudioDeviceID>.size)
+            var propertyAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioHardwarePropertyDefaultInputDevice,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            let status = AudioObjectGetPropertyData(
+                AudioObjectID(kAudioObjectSystemObject),
+                &propertyAddress,
+                0,
+                nil,
+                &propertySize,
+                &deviceID
+            )
+            guard status == noErr, deviceID != kAudioDeviceUnknown else { return }
+            
+            var vol = clamped
+            var volAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyVolumeScalar,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            let setStatus = AudioObjectSetPropertyData(deviceID, &volAddress, 0, nil, UInt32(MemoryLayout<Float32>.size), &vol)
+            if setStatus != noErr {
+                for ch: UInt32 in 1...2 {
+                    var chAddress = AudioObjectPropertyAddress(
+                        mSelector: kAudioDevicePropertyVolumeScalar,
+                        mScope: kAudioDevicePropertyScopeInput,
+                        mElement: ch
+                    )
+                    var chVol = clamped
+                    _ = AudioObjectSetPropertyData(deviceID, &chAddress, 0, nil, UInt32(MemoryLayout<Float32>.size), &chVol)
+                }
+            }
+        }
+    }
 }

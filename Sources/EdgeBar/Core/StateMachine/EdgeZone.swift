@@ -13,13 +13,35 @@ public enum EdgeZone: String, Equatable, Sendable {
 }
 
 public struct EdgeClassifier {
-    public let edgeWidth: Float
-    public let edgeHeight: Float
+    public let leftWidth: Float
+    public let rightWidth: Float
+    public let topHeight: Float
+    public let bottomHeight: Float
     public let cornerSize: Float
     
+    // Backward-compatibility aliases
+    public var edgeWidth: Float { leftWidth }
+    public var edgeHeight: Float { bottomHeight }
+    
+    public init(
+        leftWidth: Float,
+        rightWidth: Float,
+        topHeight: Float,
+        bottomHeight: Float,
+        cornerSize: Float = 0.10
+    ) {
+        self.leftWidth = leftWidth
+        self.rightWidth = rightWidth
+        self.topHeight = topHeight
+        self.bottomHeight = bottomHeight
+        self.cornerSize = cornerSize
+    }
+    
     public init(edgeWidth: Float = 0.10, edgeHeight: Float = 0.10, cornerSize: Float = 0.10) {
-        self.edgeWidth = edgeWidth
-        self.edgeHeight = edgeHeight
+        self.leftWidth = edgeWidth
+        self.rightWidth = edgeWidth
+        self.topHeight = edgeHeight
+        self.bottomHeight = edgeHeight
         self.cornerSize = cornerSize
     }
     
@@ -29,19 +51,18 @@ public struct EdgeClassifier {
             return .topRightCorner
         }
         
-        // 2. Bottom Edge strip: dedicated horizontal media control strip across the entire bottom!
-        // Prioritizing this ensures swiping to skip tracks is never stolen by left/right edge columns.
-        if y <= edgeHeight {
+        // 2. Bottom Edge strip: dedicated horizontal control strip across the entire bottom
+        if y <= bottomHeight {
             return .bottom
         }
         
-        // 3. Left Edge strip (dedicated column for display brightness)
-        if x <= edgeWidth {
+        // 3. Left Edge strip
+        if x <= leftWidth {
             return .left
         }
         
-        // 4. Right Edge strip (dedicated column for volume)
-        if x >= (1.0 - edgeWidth) {
+        // 4. Right Edge strip
+        if x >= (1.0 - rightWidth) {
             return .right
         }
         

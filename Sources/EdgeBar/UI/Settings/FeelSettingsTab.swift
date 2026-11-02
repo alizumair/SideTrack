@@ -10,7 +10,7 @@ public struct FeelSettingsTab: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Haptics & Slide Physics")
+                Text("Haptics, Audio & Physics")
                     .font(.headline)
                 
                 // Sensitivity
@@ -34,21 +34,44 @@ public struct FeelSettingsTab: View {
                 
                 Divider()
                 
-                // Haptics
+                // Haptics & Audio Clicks
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Enable Tactile Haptic Ticks", isOn: $settingsStore.settings.hapticsEnabled)
                         .font(.subheadline.bold())
                     
                     if settingsStore.settings.hapticsEnabled {
                         Picker("Haptic Tick Steps:", selection: $settingsStore.settings.hapticSteps) {
-                            Text("16 Steps (Classic macOS)").tag(16)
+                            Text("16 Steps (Classic)").tag(16)
                             Text("32 Steps (Fine)").tag(32)
                             Text("64 Steps (Ultra-Smooth)").tag(64)
                         }
                         .pickerStyle(.segmented)
                         .padding(.leading, 20)
+                        
+                        Toggle("Play Subtle Mechanical Click Audio", isOn: $settingsStore.settings.audioFeedbackEnabled)
+                            .padding(.leading, 20)
+                            .font(.body)
                     }
-                    Text("Delivers Force Touch trackpad feedback whenever a scalar volume or brightness step is crossed.")
+                    Text("Delivers Force Touch trackpad feedback and crisp audio ticks whenever a scalar step is crossed.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Divider()
+                
+                // HUD Style Selector
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("On-Screen Display (HUD) Style")
+                        .font(.subheadline.bold())
+                    
+                    Picker("", selection: $settingsStore.settings.hudStyle) {
+                        ForEach(HUDStyle.allCases) { style in
+                            Text(style.rawValue).tag(style)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    Text("Minimalist Edge Pill renders an ultra-compact status bar floating near the bottom edge. Liquid Glass provides a classic centered frosted card.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

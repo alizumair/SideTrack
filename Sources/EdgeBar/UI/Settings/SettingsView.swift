@@ -14,6 +14,11 @@ public struct SettingsView: View {
                     Label("Edges", systemImage: "rectangle.split.3x1")
                 }
             
+            ProfilesSettingsTab(settingsStore: settingsStore)
+                .tabItem {
+                    Label("Profiles", systemImage: "macwindow.on.rectangle")
+                }
+            
             FeelSettingsTab(settingsStore: settingsStore)
                 .tabItem {
                     Label("Feel", systemImage: "hand.tap")
@@ -29,6 +34,6 @@ public struct SettingsView: View {
                     Label("General", systemImage: "gearshape")
                 }
         }
-        .frame(width: 580, height: 480)
+        .frame(width: 620, height: 530)
     }
 }

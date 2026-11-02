@@ -35,10 +35,10 @@ settings: app
 	@open $(APP_BUNDLE) --args --settings
 
 install: app
-	@echo "==> Installing SideTrack to /Applications/SideTrack.app..."
-	@rm -rf /Applications/SideTrack.app
-	@cp -R $(APP_BUNDLE) /Applications/SideTrack.app
-	@echo "==> SideTrack installed! Available in Launchpad and Spotlight."
+	@echo "==> Installing EdgeBar to /Applications/EdgeBar.app..."
+	@rm -rf /Applications/EdgeBar.app /Applications/SideTrack.app
+	@cp -R $(APP_BUNDLE) /Applications/EdgeBar.app
+	@echo "==> EdgeBar installed! Available in Launchpad and Spotlight."
 
 test:
 	@echo "==> Running EdgeBar gesture state machine unit tests..."

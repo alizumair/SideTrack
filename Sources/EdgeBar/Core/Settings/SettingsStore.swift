@@ -26,7 +26,16 @@ public final class SettingsStore: ObservableObject {
                     decoded.edgeHeightFraction = 0.10
                     decoded.cornerZoneFraction = 0.10
                     decoded.hapticSteps = 64
-                    decoded.version = 2
+                }
+                if decoded.version < 3 {
+                    if decoded.leftEdgeWidthFraction <= 0 { decoded.leftEdgeWidthFraction = 0.10 }
+                    if decoded.rightEdgeWidthFraction <= 0 { decoded.rightEdgeWidthFraction = 0.10 }
+                    if decoded.bottomEdgeHeightFraction <= 0 { decoded.bottomEdgeHeightFraction = 0.10 }
+                    if decoded.topEdgeHeightFraction <= 0 { decoded.topEdgeHeightFraction = 0.10 }
+                    if decoded.profiles.isEmpty {
+                        decoded.profiles = SettingsModel.default.profiles
+                    }
+                    decoded.version = 3
                 }
                 self.settings = decoded
             } catch {

@@ -34,7 +34,7 @@ public struct EdgesSettingsTab: View {
                                     .rotationEffect(.degrees(-90))
                                     .fixedSize()
                             )
-                            .frame(width: CGFloat(settingsStore.settings.edgeWidthFraction) * 280)
+                            .frame(width: CGFloat(settingsStore.settings.leftEdgeWidthFraction) * 280)
                         Spacer()
                     }
                     .padding(8)
@@ -51,7 +51,7 @@ public struct EdgesSettingsTab: View {
                                     .rotationEffect(.degrees(90))
                                     .fixedSize()
                             )
-                            .frame(width: CGFloat(settingsStore.settings.edgeWidthFraction) * 280)
+                            .frame(width: CGFloat(settingsStore.settings.rightEdgeWidthFraction) * 280)
                     }
                     .padding(8)
                     
@@ -139,8 +139,8 @@ public struct EdgesSettingsTab: View {
                                     .font(.caption2.bold())
                                     .foregroundColor(.purple)
                             )
-                            .frame(height: CGFloat(settingsStore.settings.edgeHeightFraction) * 120)
-                            .padding(.horizontal, CGFloat(settingsStore.settings.edgeWidthFraction) * 180)
+                            .frame(height: CGFloat(settingsStore.settings.bottomEdgeHeightFraction) * 120)
+                            .padding(.horizontal, CGFloat(settingsStore.settings.leftEdgeWidthFraction) * 180)
                     }
                     .padding(8)
                     
@@ -155,33 +155,59 @@ public struct EdgesSettingsTab: View {
                 
                 Divider()
                 
-                // Edge Band Widths
+                // Granular Independent Edge Dimensions
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Edge Strip Dimensions")
+                    Text("Independent Edge Perimeter Dimensions")
                         .font(.subheadline.bold())
                     
                     HStack {
-                        Text("Side Edge Width:")
-                            .frame(width: 140, alignment: .leading)
+                        Text("Left Edge Width:")
+                            .frame(width: 150, alignment: .leading)
                         Slider(
-                            value: $settingsStore.settings.edgeWidthFraction,
+                            value: $settingsStore.settings.leftEdgeWidthFraction,
                             in: 0.05...0.30,
                             step: 0.01
                         )
-                        Text("\(Int(settingsStore.settings.edgeWidthFraction * 100))%")
+                        Text("\(Int(settingsStore.settings.leftEdgeWidthFraction * 100))%")
+                            .frame(width: 45, alignment: .trailing)
+                            .monospacedDigit()
+                    }
+                    
+                    HStack {
+                        Text("Right Edge Width:")
+                            .frame(width: 150, alignment: .leading)
+                        Slider(
+                            value: $settingsStore.settings.rightEdgeWidthFraction,
+                            in: 0.05...0.30,
+                            step: 0.01
+                        )
+                        Text("\(Int(settingsStore.settings.rightEdgeWidthFraction * 100))%")
                             .frame(width: 45, alignment: .trailing)
                             .monospacedDigit()
                     }
                     
                     HStack {
                         Text("Bottom Edge Height:")
-                            .frame(width: 140, alignment: .leading)
+                            .frame(width: 150, alignment: .leading)
                         Slider(
-                            value: $settingsStore.settings.edgeHeightFraction,
+                            value: $settingsStore.settings.bottomEdgeHeightFraction,
                             in: 0.05...0.30,
                             step: 0.01
                         )
-                        Text("\(Int(settingsStore.settings.edgeHeightFraction * 100))%")
+                        Text("\(Int(settingsStore.settings.bottomEdgeHeightFraction * 100))%")
+                            .frame(width: 45, alignment: .trailing)
+                            .monospacedDigit()
+                    }
+                    
+                    HStack {
+                        Text("Top Edge Height:")
+                            .frame(width: 150, alignment: .leading)
+                        Slider(
+                            value: $settingsStore.settings.topEdgeHeightFraction,
+                            in: 0.05...0.30,
+                            step: 0.01
+                        )
+                        Text("\(Int(settingsStore.settings.topEdgeHeightFraction * 100))%")
                             .frame(width: 45, alignment: .trailing)
                             .monospacedDigit()
                     }
@@ -191,7 +217,7 @@ public struct EdgesSettingsTab: View {
                 
                 // Edge Assignments
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Action Mappings")
+                    Text("Hardware Action Mappings")
                         .font(.subheadline.bold())
                     
                     Picker("Left Edge Slide:", selection: $settingsStore.settings.leftEdgeAction) {

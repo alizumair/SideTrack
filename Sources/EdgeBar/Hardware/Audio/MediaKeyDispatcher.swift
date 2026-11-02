@@ -12,6 +12,8 @@ public enum MediaKey: Int32 {
     case previousTrack = 18
     case fastForward = 19
     case rewind = 20
+    case illuminationUp = 21
+    case illuminationDown = 22
 }
 
 public final class MediaKeyDispatcher {
@@ -70,6 +72,33 @@ public final class MediaKeyDispatcher {
     public func brightnessDown() {
         postKey(MediaKey.brightnessDown.rawValue, down: true)
         postKey(MediaKey.brightnessDown.rawValue, down: false)
+    }
+    
+    public func keyboardBrightnessUp() {
+        postKey(MediaKey.illuminationUp.rawValue, down: true)
+        postKey(MediaKey.illuminationUp.rawValue, down: false)
+    }
+    
+    public func keyboardBrightnessDown() {
+        postKey(MediaKey.illuminationDown.rawValue, down: true)
+        postKey(MediaKey.illuminationDown.rawValue, down: false)
+    }
+    
+    public func stepTimeline(forward: Bool) {
+        // Virtual key 124 is Right Arrow, 123 is Left Arrow
+        let key: CGKeyCode = forward ? 124 : 123
+        if let down = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: true),
+           let up = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false) {
+            down.post(tap: .cghidEventTap)
+            up.post(tap: .cghidEventTap)
+        }
+    }
+    
+    public func scrollPage(up: Bool, deltaLines: Int32 = 3) {
+        let delta = up ? deltaLines : -deltaLines
+        if let scroll = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: delta, wheel2: 0, wheel3: 0) {
+            scroll.post(tap: .cghidEventTap)
+        }
     }
     
     private func postKey(_ keyCode: Int32, down: Bool) {

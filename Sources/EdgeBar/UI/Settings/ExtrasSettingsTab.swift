@@ -2,6 +2,8 @@ import SwiftUI
 
 public struct ExtrasSettingsTab: View {
     @ObservedObject var settingsStore: SettingsStore
+    @State private var testScriptResult: String? = nil
+    @State private var isRunningTest: Bool = false
     
     public init(settingsStore: SettingsStore) {
         self.settingsStore = settingsStore
@@ -10,7 +12,7 @@ public struct ExtrasSettingsTab: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Modifiers & Corner Taps")
+                Text("Modifiers, Scripts & Shortcuts")
                     .font(.headline)
                 
                 // Precision Modifier
@@ -37,7 +39,7 @@ public struct ExtrasSettingsTab: View {
                 
                 Divider()
                 
-                // Corner & Tap Shortcuts
+                // Double-Tap Shortcuts
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Corner & Tap Shortcuts")
                         .font(.subheadline.bold())
@@ -59,9 +61,64 @@ public struct ExtrasSettingsTab: View {
                 
                 Divider()
                 
+                // Scripting & Custom Triggers
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Custom Script & Shortcut Trigger")
+                        .font(.subheadline.bold())
+                    
+                    Picker("Trigger Execution Engine:", selection: $settingsStore.settings.customScriptTrigger.type) {
+                        ForEach(ScriptTriggerType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(settingsStore.settings.customScriptTrigger.type == .shortcut ? "Shortcut Name:" : "Script Command / Body:")
+                            .font(.caption.bold())
+                        
+                        if settingsStore.settings.customScriptTrigger.type == .shortcut {
+                            TextField("e.g. Turn On Focus Mode", text: $settingsStore.settings.customScriptTrigger.payload)
+                                .textFieldStyle(.roundedBorder)
+                        } else {
+                            TextEditor(text: $settingsStore.settings.customScriptTrigger.payload)
+                                .font(.system(.caption, design: .monospaced))
+                                .frame(height: 70)
+                                .border(Color.secondary.opacity(0.2), width: 1)
+                        }
+                    }
+                    
+                    HStack {
+                        Button(action: runTestScript) {
+                            HStack(spacing: 6) {
+                                if isRunningTest {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "play.fill")
+                                }
+                                Text("Test Execute")
+                            }
+                        }
+                        .disabled(isRunningTest || settingsStore.settings.customScriptTrigger.payload.isEmpty)
+                        
+                        if let res = testScriptResult {
+                            Text(res)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    
+                    Text("Map 'Run Custom Script' to any edge double-tap or corner macro above to trigger this action on the fly.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Divider()
+                
                 // Corner Hold Macros
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Corner Hold Gestures")
+                    Text("Stationary Corner Hold Gestures")
                         .font(.subheadline.bold())
                     
                     Toggle("Enable Stationary Corner Holds", isOn: $settingsStore.settings.cornerHoldsEnabled)
@@ -80,7 +137,7 @@ public struct ExtrasSettingsTab: View {
                                     .frame(width: 45, alignment: .trailing)
                                     .monospacedDigit()
                             }
-                            Text("Holding Top-Left or Bottom-Left stationary copies a screenshot to the clipboard.")
+                            Text("Holding Top-Left or Bottom-Left stationary copies a screenshot to clipboard.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             
@@ -107,26 +164,24 @@ public struct ExtrasSettingsTab: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                
-                Divider()
-                
-                // HUD & OSD Feedback
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Visual On-Screen Feedback")
-                        .font(.subheadline.bold())
-                    
-                    Toggle("Use Native macOS System OSD (Bezel)", isOn: $settingsStore.settings.useSystemOSD)
-                    
-                    if !settingsStore.settings.useSystemOSD {
-                        Toggle("Show EdgeBar Floating Glass HUD", isOn: $settingsStore.settings.showHUDOverlay)
-                    }
-                    
-                    Text("EdgeBar directly interfaces with macOS OSDManager or renders a modern floating HUD when levels change.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
             }
             .padding(20)
+        }
+    }
+    
+    private func runTestScript() {
+        isRunningTest = true
+        testScriptResult = "Running..."
+        ScriptDispatcher.shared.execute(trigger: settingsStore.settings.customScriptTrigger) { result in
+            DispatchQueue.main.async {
+                self.isRunningTest = false
+                switch result {
+                case .success(let output):
+                    self.testScriptResult = "✓ \(output.trimmingCharacters(in: .whitespacesAndNewlines))"
+                case .failure(let err):
+                    self.testScriptResult = "✗ \(err.localizedDescription)"
+                }
+            }
         }
     }
 }

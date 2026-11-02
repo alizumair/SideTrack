@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import AudioToolbox
 
 public typealias HapticEngine = HapticFeedbackBridge
 
@@ -8,15 +9,26 @@ public final class HapticFeedbackBridge {
     
     private let performer = NSHapticFeedbackManager.defaultPerformer
     private var lastStep: Int?
+    public var audioFeedbackEnabled: Bool = false
     
     private init() {}
     
     public func tick() {
         performer.perform(.levelChange, performanceTime: .now)
+        if audioFeedbackEnabled {
+            playAudioClick()
+        }
     }
     
     public func alignment() {
         performer.perform(.alignment, performanceTime: .now)
+        if audioFeedbackEnabled {
+            AudioServicesPlaySystemSound(1105)
+        }
+    }
+    
+    public func playAudioClick() {
+        AudioServicesPlaySystemSound(1104)
     }
     
     public func reset() {

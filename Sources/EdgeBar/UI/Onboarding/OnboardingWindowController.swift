@@ -13,7 +13,7 @@ public struct OnboardingView: View {
                 .foregroundColor(.accentColor)
             
             VStack(spacing: 8) {
-                Text("Welcome to SideTrack")
+                Text("Welcome to EdgeBar")
                     .font(.system(size: 22, weight: .bold))
                 
                 Text("Turn your MacBook trackpad edges into hardware volume and display strips.")

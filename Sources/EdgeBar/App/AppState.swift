@@ -26,6 +26,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     private func setupDelegates() {
         slideEngine.delegate = self
         MultitouchBridge.shared.delegate = self
+        HapticFeedbackBridge.shared.audioFeedbackEnabled = settingsStore.settings.audioFeedbackEnabled
         
         CoreAudioBridge.shared.onVolumeChanged = { [weak self] vol, muted in
             DispatchQueue.main.async {
@@ -39,6 +40,14 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
                 self?.currentBrightness = brightness
             }
         }
+        
+        // Smart Context Switching (App Profiles & Game Mode)
+        ProfileManager.shared.onProfileChanged = { [weak self] profile, isGameMode in
+            guard let self = self else { return }
+            self.slideEngine.activeProfile = profile
+            self.slideEngine.isGameModeBypassed = isGameMode
+        }
+        ProfileManager.shared.evaluateFrontmostApp(settings: settingsStore.settings)
     }
     
     private func bindSettings() {
@@ -46,6 +55,8 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
             .sink { [weak self] newSettings in
                 guard let self = self else { return }
                 self.slideEngine.settings = newSettings
+                HapticFeedbackBridge.shared.audioFeedbackEnabled = newSettings.audioFeedbackEnabled
+                ProfileManager.shared.evaluateFrontmostApp(settings: newSettings)
             }
             .store(in: &cancellables)
     }
@@ -77,8 +88,11 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         let updated = max(0.0, min(1.0, current + delta * multiplier))
         DisplayBrightnessBridge.shared.setBrightness(updated)
         
-        // Show native macOS Brightness Sun HUD
-        OSDBridge.shared.showBrightness(level: updated)
+        if settingsStore.settings.useSystemOSD {
+            OSDBridge.shared.showBrightness(level: updated)
+        } else if settingsStore.settings.showHUDOverlay {
+            EdgeBarHUDOverlay.shared.show(.brightness(level: updated))
+        }
         
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
@@ -91,11 +105,61 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         let updated = max(0.0, min(1.0, current + delta * multiplier))
         CoreAudioBridge.shared.setVolume(updated)
         
-        // Show native macOS Volume Speaker HUD
-        OSDBridge.shared.showVolume(level: updated, muted: CoreAudioBridge.shared.isMuted())
+        if settingsStore.settings.useSystemOSD {
+            OSDBridge.shared.showVolume(level: updated, muted: CoreAudioBridge.shared.isMuted())
+        } else if settingsStore.settings.showHUDOverlay {
+            EdgeBarHUDOverlay.shared.show(.volume(level: updated, isMuted: CoreAudioBridge.shared.isMuted()))
+        }
         
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
+        }
+    }
+    
+    public func slideEngineDidAdjustKeyboardBacklight(delta: Float, isPrecise: Bool) {
+        let current = KeyboardBacklightBridge.shared.getBrightness()
+        let multiplier: Float = isPrecise ? 0.25 : 0.6
+        let updated = max(0.0, min(1.0, current + delta * multiplier))
+        KeyboardBacklightBridge.shared.setBrightness(updated)
+        
+        if settingsStore.settings.showHUDOverlay {
+            EdgeBarHUDOverlay.shared.show(.keyboardBacklight(level: updated))
+        }
+        
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
+        }
+    }
+    
+    public func slideEngineDidAdjustMicGain(delta: Float, isPrecise: Bool) {
+        let current = CoreAudioBridge.shared.getInputGain()
+        let multiplier: Float = isPrecise ? 0.25 : 0.6
+        let updated = max(0.0, min(1.0, current + delta * multiplier))
+        CoreAudioBridge.shared.setInputGain(updated)
+        
+        if settingsStore.settings.showHUDOverlay {
+            EdgeBarHUDOverlay.shared.show(.micGain(level: updated))
+        }
+        
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
+        }
+    }
+    
+    public func slideEngineDidScrubTimeline(forward: Bool) {
+        MediaKeyDispatcher.shared.stepTimeline(forward: forward)
+        if settingsStore.settings.showHUDOverlay {
+            EdgeBarHUDOverlay.shared.show(.timelineScrub(forward: forward))
+        }
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.tick()
+        }
+    }
+    
+    public func slideEngineDidScrollPage(up: Bool) {
+        MediaKeyDispatcher.shared.scrollPage(up: up)
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.tick()
         }
     }
     
@@ -124,9 +188,31 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         CoreAudioBridge.shared.toggleMute()
         let isMuted = CoreAudioBridge.shared.isMuted()
         let current = CoreAudioBridge.shared.getVolume()
-        OSDBridge.shared.showVolume(level: current, muted: isMuted)
+        if settingsStore.settings.useSystemOSD {
+            OSDBridge.shared.showVolume(level: current, muted: isMuted)
+        } else if settingsStore.settings.showHUDOverlay {
+            EdgeBarHUDOverlay.shared.show(.volume(level: current, isMuted: isMuted))
+        }
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.alignment()
+        }
+    }
+    
+    public func slideEngineDidTriggerCustomScript() {
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.alignment()
+        }
+        let trigger = settingsStore.settings.customScriptTrigger
+        ScriptDispatcher.shared.execute(trigger: trigger) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let msg):
+                    let preview = msg.trimmingCharacters(in: .whitespacesAndNewlines)
+                    EdgeBarHUDOverlay.shared.show(.media(message: preview.isEmpty ? "Action Executed" : preview, icon: "bolt.fill"))
+                case .failure(let err):
+                    EdgeBarHUDOverlay.shared.show(.media(message: "Script Failed: \(err.localizedDescription)", icon: "exclamationmark.triangle.fill"))
+                }
+            }
         }
     }
     
@@ -187,10 +273,6 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            // -i: interactive
-            // -U: show interactive toolbar
-            // -Jvideo: explicitly pre-selects video screen recording mode
-            // -p: uses default destination preferences (e.g. Documents/Desktop)
             task.arguments = ["-i", "-U", "-Jvideo", "-p"]
             do {
                 try task.run()

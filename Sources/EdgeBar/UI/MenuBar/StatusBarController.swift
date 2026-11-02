@@ -17,7 +17,7 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
     
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.autosaveName = "SideTrackStatusItem"
+        statusItem.autosaveName = "EdgeBarStatusItem"
         statusItem.behavior = [.removalAllowed]
         statusItem.isVisible = true
         
@@ -34,12 +34,12 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
                 button.image = menuImage
             } else {
                 let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-                let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "SideTrack")?.withSymbolConfiguration(config)
+                let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "EdgeBar")?.withSymbolConfiguration(config)
                 image?.isTemplate = true
                 button.image = image
             }
             button.imagePosition = .imageOnly
-            button.toolTip = "SideTrack"
+            button.toolTip = "EdgeBar"
         }
         
         buildMenu()
@@ -145,7 +145,7 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
                     backing: .buffered,
                     defer: false
                 )
-                window.title = "SideTrack Settings"
+                window.title = "EdgeBar Settings"
                 window.contentView = hosting
                 window.center()
                 window.isReleasedWhenClosed = false

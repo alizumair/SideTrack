@@ -90,7 +90,7 @@ public struct GeneralSettingsTab: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("SideTrack (EdgeBar)")
+                        Text("EdgeBar")
                             .font(.headline)
                         Text("Version 1.0.0 • Pure Swift Native Utility")
                             .font(.caption)
