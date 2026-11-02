@@ -16,9 +16,10 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     // Accumulators for discrete step tracking (16 steps across the trackpad)
     private var accumulatedVolumeTravel: Float = 0.0
-    private let travelPerVolumeStep: Float = 0.030 // ~5mm slide per macOS volume tick
+    private let travelPerVolumeStep: Float = 0.028 // ~4.5mm slide per macOS volume tick
     
-    private var lastBrightnessOSDTime: Double = 0.0
+    private var accumulatedBrightnessTravel: Float = 0.0
+    private let travelPerBrightnessStep: Float = 0.028 // ~4.5mm slide per macOS brightness tick
     
     public init(settingsStore: SettingsStore = .shared) {
         self.settingsStore = settingsStore
@@ -78,32 +79,33 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     // MARK: - SlideEngineDelegate
     public func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {
-        let current = DisplayBrightnessBridge.shared.getBrightness()
-        // Calibrated sensitivity: 0.8x gives calm, predictable adjustments
-        let scaledDelta = delta * 0.8
-        let updated = max(0.0, min(1.0, current + scaledDelta))
-        DisplayBrightnessBridge.shared.setBrightness(updated)
+        accumulatedBrightnessTravel += delta
+        let step = isPrecise ? (travelPerBrightnessStep * 2.5) : travelPerBrightnessStep
         
-        if settingsStore.settings.hapticsEnabled {
-            HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
-        }
-        
-        let now = CACurrentMediaTime()
-        if now - lastBrightnessOSDTime >= 0.035 {
-            lastBrightnessOSDTime = now
-            if settingsStore.settings.useSystemOSD {
-                OSDBridge.shared.showBrightness(level: updated)
+        if accumulatedBrightnessTravel >= step {
+            while accumulatedBrightnessTravel >= step {
+                accumulatedBrightnessTravel -= step
+                MediaKeyDispatcher.shared.brightnessUp()
+                if settingsStore.settings.hapticsEnabled {
+                    HapticFeedbackBridge.shared.tick()
+                }
+            }
+        } else if accumulatedBrightnessTravel <= -step {
+            while accumulatedBrightnessTravel <= -step {
+                accumulatedBrightnessTravel += step
+                MediaKeyDispatcher.shared.brightnessDown()
+                if settingsStore.settings.hapticsEnabled {
+                    HapticFeedbackBridge.shared.tick()
+                }
             }
         }
     }
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
-        // Accumulate vertical travel distance
         accumulatedVolumeTravel += delta
-        let step = isPrecise ? (travelPerVolumeStep * 2.0) : travelPerVolumeStep
+        let step = isPrecise ? (travelPerVolumeStep * 2.5) : travelPerVolumeStep
         
         if accumulatedVolumeTravel >= step {
-            // Slide upwards: Volume Up
             while accumulatedVolumeTravel >= step {
                 accumulatedVolumeTravel -= step
                 MediaKeyDispatcher.shared.volumeUp()
@@ -112,7 +114,6 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
                 }
             }
         } else if accumulatedVolumeTravel <= -step {
-            // Slide downwards: Volume Down
             while accumulatedVolumeTravel <= -step {
                 accumulatedVolumeTravel += step
                 MediaKeyDispatcher.shared.volumeDown()
@@ -155,11 +156,13 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         
         if isSliding {
             accumulatedVolumeTravel = 0.0
+            accumulatedBrightnessTravel = 0.0
             if settingsStore.settings.cursorFreezingEnabled {
                 CursorFreezer.shared.freeze()
             }
         } else {
             accumulatedVolumeTravel = 0.0
+            accumulatedBrightnessTravel = 0.0
             CursorFreezer.shared.unfreeze()
             HapticFeedbackBridge.shared.reset()
         }
