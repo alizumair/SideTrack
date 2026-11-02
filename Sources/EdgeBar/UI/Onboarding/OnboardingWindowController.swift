@@ -2,19 +2,19 @@ import SwiftUI
 import AppKit
 
 public struct OnboardingView: View {
-    @ObservedObject var permissions = AccessibilityManager.shared
+    @ObservedObject var accessibility = AccessibilityManager.shared
     
     public init() {}
     
     public var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             Image(systemName: "slider.vertical.3")
-                .font(.system(size: 48))
+                .font(.system(size: 56))
                 .foregroundColor(.accentColor)
             
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 Text("Welcome to SideTrack")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                 
                 Text("Turn your MacBook trackpad edges into hardware volume and display strips.")
                     .font(.subheadline)
@@ -22,19 +22,19 @@ public struct OnboardingView: View {
                     .multilineTextAlignment(.center)
             }
             
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 FeatureRow(
                     icon: "sun.max.fill",
                     color: .blue,
                     title: "Left Edge: Display Brightness",
-                    description: "Slide vertically along the left 18% of your trackpad."
+                    description: "Slide up or down along the left edge."
                 )
                 
                 FeatureRow(
                     icon: "speaker.wave.3.fill",
                     color: .orange,
                     title: "Right Edge: System Volume",
-                    description: "Slide vertically along the right 18% of your trackpad."
+                    description: "Slide up or down along the right edge."
                 )
                 
                 FeatureRow(
@@ -43,62 +43,42 @@ public struct OnboardingView: View {
                     title: "Bottom Edge: Media Control",
                     description: "Swipe horizontally to skip tracks; double-tap to play/pause."
                 )
+                
+                FeatureRow(
+                    icon: "hand.raised.fill",
+                    color: .green,
+                    title: "Intelligent Multi-Finger Gate",
+                    description: "Standard 2-finger scrolling and native gestures are never affected."
+                )
             }
-            .padding(14)
+            .padding(16)
             .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(10)
+            .cornerRadius(12)
             
             Divider()
             
-            VStack(spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("1. Input Monitoring")
+            HStack {
+                if accessibility.isTrusted {
+                    Label("Accessibility Granted!", systemImage: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.headline)
+                } else {
+                    Button(action: {
+                        accessibility.promptForAccessibility()
+                    }) {
+                        Text("Grant Accessibility Permission")
                             .font(.headline)
-                        Text("Required for macOS to deliver raw edge touch frames.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity)
                     }
-                    Spacer()
-                    if permissions.isInputMonitoringGranted {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .font(.title2)
-                    } else {
-                        Button("Grant") {
-                            permissions.promptForInputMonitoring()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                }
-                
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("2. Accessibility")
-                            .font(.headline)
-                        Text("Required to dispatch native macOS volume & brightness bezels.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    if permissions.isAccessibilityGranted {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .font(.title2)
-                    } else {
-                        Button("Grant") {
-                            permissions.promptForAccessibility()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
+                    .controlSize(.large)
+                    .buttonStyle(.borderedProminent)
                 }
             }
-            .padding(.horizontal, 4)
         }
-        .padding(24)
-        .frame(width: 480, height: 490)
+        .padding(28)
+        .frame(width: 480, height: 460)
         .onAppear {
-            permissions.checkStatus()
+            accessibility.checkStatus()
         }
     }
 }
@@ -112,9 +92,9 @@ private struct FeatureRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(.system(size: 18))
                 .foregroundColor(color)
-                .frame(width: 20, height: 20)
+                .frame(width: 24, height: 24)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

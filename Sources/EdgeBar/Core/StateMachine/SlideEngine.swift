@@ -101,7 +101,6 @@ public final class SlideEngine {
         switch phase {
         case .idle:
             let zone = classifier.classify(x: contact.x, y: contact.y)
-            NSLog("[EdgeBar] Touch down at (%.3f, %.3f) -> Zone: %@", contact.x, contact.y, zone.rawValue)
             if zone == .middle {
                 // Reject middle touches: normal pointer movement, ignore throughout its session
                 ignoredTouchIDs.insert(contact.id)
@@ -130,7 +129,6 @@ public final class SlideEngine {
             let duration = timestamp - startTime
             
             if contact.state.isTerminating {
-                NSLog("[EdgeBar] Candidate lifted: movement=%.3f", movement)
                 // Finger lifted while still a candidate: check if it's a tap
                 let tapThreshold: Float = 0.025
                 if movement < tapThreshold && duration < settings.doubleTapMaxInterval {
@@ -146,14 +144,13 @@ public final class SlideEngine {
                 let isMovingInward: Bool
                 if zone == .left {
                     // Left edge moving towards center: dx > 0
-                    isMovingInward = dx > 0.030 && dx > (absDy * 1.5)
+                    isMovingInward = dx > 0.025 && dx > (absDy * 1.3)
                 } else {
                     // Right edge moving towards center: dx < 0
-                    isMovingInward = dx < -0.030 && (-dx) > (absDy * 1.5)
+                    isMovingInward = dx < -0.025 && (-dx) > (absDy * 1.3)
                 }
                 
                 if isMovingInward {
-                    NSLog("[EdgeBar] Rejecting inward drag: dx=%.3f dy=%.3f", dx, dy)
                     // Clearly moving horizontally into the trackpad: pass through to macOS
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
@@ -162,7 +159,6 @@ public final class SlideEngine {
                 
                 // Engage vertical sliding along the edge when vertical movement passes threshold (~0.8mm)
                 if absDy >= 0.010 && absDy >= absDx {
-                    NSLog("[EdgeBar] Engaging slide in zone %@: dy=%.3f", zone.rawValue, dy)
                     phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                     startSlide()
                     processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
@@ -170,16 +166,14 @@ public final class SlideEngine {
             } else if zone == .bottom {
                 // Gating for bottom edge:
                 // If moving vertically upwards from the bottom strip into trackpad center:
-                if dy > 0.030 && dy > (absDx * 1.5) {
-                    NSLog("[EdgeBar] Rejecting bottom vertical drag: dy=%.3f dx=%.3f", dy, dx)
+                if dy > 0.025 && dy > (absDx * 1.3) {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
                 // Engage horizontal media skip when swiping horizontally across the bottom strip
-                if absDx >= 0.025 && absDx >= absDy {
-                    NSLog("[EdgeBar] Bottom horizontal swipe engaged: dx=%.3f", dx)
+                if absDx >= 0.030 && absDx >= absDy {
                     if !hasFiredMediaSkipForCurrentSlide {
                         delegate?.slideEngineDidSkipMediaTrack(forward: dx > 0)
                         hasFiredMediaSkipForCurrentSlide = true

@@ -14,12 +14,9 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     public let slideEngine: SlideEngine
     private var cancellables = Set<AnyCancellable>()
     
-    // Accumulators for discrete step tracking (calm, predictable stepping across trackpad)
+    // Accumulators for discrete volume step tracking (~2.8mm per tick)
     private var accumulatedVolumeTravel: Float = 0.0
-    private let travelPerVolumeStep: Float = 0.032 // ~2.5mm slide per macOS volume tick
-    
-    private var accumulatedBrightnessTravel: Float = 0.0
-    private let travelPerBrightnessStep: Float = 0.032 // ~2.5mm slide per macOS brightness tick
+    private let travelPerVolumeStep: Float = 0.035
     
     public init(settingsStore: SettingsStore = .shared) {
         self.settingsStore = settingsStore
@@ -79,37 +76,19 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     
     // MARK: - SlideEngineDelegate
     public func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {
-        if delta > 0 && accumulatedBrightnessTravel < 0 {
-            accumulatedBrightnessTravel = 0
-        } else if delta < 0 && accumulatedBrightnessTravel > 0 {
-            accumulatedBrightnessTravel = 0
-        }
+        // Direct, smooth 120Hz display brightness adjustment
+        let current = DisplayBrightnessBridge.shared.getBrightness()
+        let multiplier: Float = isPrecise ? 0.3 : 0.8
+        let updated = max(0.0, min(1.0, current + delta * multiplier))
+        DisplayBrightnessBridge.shared.setBrightness(updated)
         
-        accumulatedBrightnessTravel += delta
-        let step = isPrecise ? (travelPerBrightnessStep * 2.0) : travelPerBrightnessStep
-        
-        if accumulatedBrightnessTravel >= step {
-            while accumulatedBrightnessTravel >= step {
-                accumulatedBrightnessTravel -= step
-                NSLog("[EdgeBar] Brightness UP")
-                MediaKeyDispatcher.shared.brightnessUp()
-                if settingsStore.settings.hapticsEnabled {
-                    HapticFeedbackBridge.shared.tick()
-                }
-            }
-        } else if accumulatedBrightnessTravel <= -step {
-            while accumulatedBrightnessTravel <= -step {
-                accumulatedBrightnessTravel += step
-                NSLog("[EdgeBar] Brightness DOWN")
-                MediaKeyDispatcher.shared.brightnessDown()
-                if settingsStore.settings.hapticsEnabled {
-                    HapticFeedbackBridge.shared.tick()
-                }
-            }
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.trackStep(level: updated, totalSteps: settingsStore.settings.hapticSteps)
         }
     }
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
+        // Reset opposite accumulator when direction reverses
         if delta > 0 && accumulatedVolumeTravel < 0 {
             accumulatedVolumeTravel = 0
         } else if delta < 0 && accumulatedVolumeTravel > 0 {
@@ -122,7 +101,6 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         if accumulatedVolumeTravel >= step {
             while accumulatedVolumeTravel >= step {
                 accumulatedVolumeTravel -= step
-                NSLog("[EdgeBar] Volume UP")
                 MediaKeyDispatcher.shared.volumeUp()
                 if settingsStore.settings.hapticsEnabled {
                     HapticFeedbackBridge.shared.tick()
@@ -131,7 +109,6 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         } else if accumulatedVolumeTravel <= -step {
             while accumulatedVolumeTravel <= -step {
                 accumulatedVolumeTravel += step
-                NSLog("[EdgeBar] Volume DOWN")
                 MediaKeyDispatcher.shared.volumeDown()
                 if settingsStore.settings.hapticsEnabled {
                     HapticFeedbackBridge.shared.tick()
@@ -172,13 +149,11 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         
         if isSliding {
             accumulatedVolumeTravel = 0.0
-            accumulatedBrightnessTravel = 0.0
             if settingsStore.settings.cursorFreezingEnabled {
                 CursorFreezer.shared.freeze()
             }
         } else {
             accumulatedVolumeTravel = 0.0
-            accumulatedBrightnessTravel = 0.0
             CursorFreezer.shared.unfreeze()
             HapticFeedbackBridge.shared.reset()
         }
