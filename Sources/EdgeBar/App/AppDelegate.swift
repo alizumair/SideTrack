@@ -13,13 +13,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Start trackpad engine
         AppState.shared.startEngine()
-        
-        // Check permissions and present onboarding if needed
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            if !AccessibilityManager.shared.isTrusted {
-                self?.statusBarController?.openPermissions()
-            }
-        }
     }
     
     public func applicationWillTerminate(_ notification: Notification) {
