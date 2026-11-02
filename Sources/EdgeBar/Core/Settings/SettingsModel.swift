@@ -26,7 +26,7 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     public var isEnabled: Bool = true
     
     // Edges
-    public var edgeWidthFraction: Double = 0.18        // 18% outer horizontal edge
+    public var edgeWidthFraction: Double = 0.14        // 14% outer horizontal edge (~22mm)
     public var edgeHeightFraction: Double = 0.18       // 18% outer bottom edge
     public var cornerZoneFraction: Double = 0.12       // 12% corner box (compact for tap targets)
     public var leftEdgeAction: EdgeAction = .brightness

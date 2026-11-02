@@ -17,7 +17,7 @@ public struct EdgeClassifier {
     public let edgeHeight: Float
     public let cornerSize: Float
     
-    public init(edgeWidth: Float = 0.18, edgeHeight: Float = 0.18, cornerSize: Float = 0.12) {
+    public init(edgeWidth: Float = 0.14, edgeHeight: Float = 0.18, cornerSize: Float = 0.12) {
         self.edgeWidth = edgeWidth
         self.edgeHeight = edgeHeight
         self.cornerSize = cornerSize
