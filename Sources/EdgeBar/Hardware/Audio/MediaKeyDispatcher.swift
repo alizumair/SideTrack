@@ -31,29 +31,28 @@ public final class MediaKeyDispatcher {
     public func playPause() {
         if let sendMR = sendMediaRemoteCommand {
             _ = sendMR(2, nil) // kMRTogglePlayPause = 2
+        } else {
+            postKey(MediaKey.playPause.rawValue, down: true)
+            postKey(MediaKey.playPause.rawValue, down: false)
         }
-        postKey(MediaKey.playPause.rawValue, down: true)
-        postKey(MediaKey.playPause.rawValue, down: false)
     }
     
     public func nextTrack() {
         if let sendMR = sendMediaRemoteCommand {
             _ = sendMR(4, nil) // kMRNextTrack = 4
+        } else {
+            postKey(MediaKey.nextTrack.rawValue, down: true)
+            postKey(MediaKey.nextTrack.rawValue, down: false)
         }
-        postKey(MediaKey.nextTrack.rawValue, down: true)
-        postKey(MediaKey.nextTrack.rawValue, down: false)
-        postKey(MediaKey.fastForward.rawValue, down: true)
-        postKey(MediaKey.fastForward.rawValue, down: false)
     }
     
     public func previousTrack() {
         if let sendMR = sendMediaRemoteCommand {
             _ = sendMR(5, nil) // kMRPreviousTrack = 5
+        } else {
+            postKey(MediaKey.previousTrack.rawValue, down: true)
+            postKey(MediaKey.previousTrack.rawValue, down: false)
         }
-        postKey(MediaKey.previousTrack.rawValue, down: true)
-        postKey(MediaKey.previousTrack.rawValue, down: false)
-        postKey(MediaKey.rewind.rawValue, down: true)
-        postKey(MediaKey.rewind.rawValue, down: false)
     }
     
     public func volumeUp() {

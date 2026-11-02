@@ -76,7 +76,7 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     // MARK: - SlideEngineDelegate
     public func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {
         let current = DisplayBrightnessBridge.shared.getBrightness()
-        let scaledDelta = delta * 1.8
+        let scaledDelta = delta * 1.5
         let updated = max(0.0, min(1.0, current + scaledDelta))
         DisplayBrightnessBridge.shared.setBrightness(updated)
         
@@ -87,17 +87,18 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         let now = CACurrentMediaTime()
         if now - lastBrightnessOSDTime >= 0.035 {
             lastBrightnessOSDTime = now
+            if settingsStore.settings.showHUDOverlay {
+                EdgeBarHUDOverlay.shared.show(.brightness(level: updated))
+            }
             if settingsStore.settings.useSystemOSD {
                 OSDBridge.shared.showBrightness(level: updated)
-            } else if settingsStore.settings.showHUDOverlay {
-                EdgeBarHUDOverlay.shared.show(.brightness(level: updated))
             }
         }
     }
     
     public func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {
         let current = CoreAudioBridge.shared.getVolume()
-        let scaledDelta = delta * 1.8
+        let scaledDelta = delta * 1.5
         let updated = max(0.0, min(1.0, current + scaledDelta))
         CoreAudioBridge.shared.setVolume(updated)
         
@@ -109,10 +110,12 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         if now - lastVolumeOSDTime >= 0.035 {
             lastVolumeOSDTime = now
             let muted = CoreAudioBridge.shared.isMuted()
+            // Always show the sound popup overlay for real-time visual feedback
+            if settingsStore.settings.showHUDOverlay {
+                EdgeBarHUDOverlay.shared.show(.volume(level: updated, isMuted: muted))
+            }
             if settingsStore.settings.useSystemOSD {
                 OSDBridge.shared.showVolume(level: updated, muted: muted)
-            } else if settingsStore.settings.showHUDOverlay {
-                EdgeBarHUDOverlay.shared.show(.volume(level: updated, isMuted: muted))
             }
         }
     }

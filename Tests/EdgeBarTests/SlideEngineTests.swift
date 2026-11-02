@@ -123,6 +123,22 @@ final class SlideEngineTests: XCTestCase {
         XCTAssertFalse(delegate.slidingStates.contains(true))
     }
     
+    func testHorizontalDragFromEdgeIsIgnored() {
+        var t = 1.0
+        // Touch lands on left edge (x: 0.05, y: 0.50)
+        let c1 = TrackpadContact(id: 1, x: 0.05, y: 0.50, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c1], timestamp: t)
+        
+        // User drags horizontally towards center (x: 0.15, y: 0.50)
+        t += 0.05
+        let c2 = TrackpadContact(id: 1, x: 0.15, y: 0.50, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c2], timestamp: t)
+        
+        // Because horizontal motion dominates (absDx > absDy), it must be rejected!
+        XCTAssertEqual(delegate.brightnessDeltas.count, 0)
+        XCTAssertFalse(delegate.slidingStates.contains(true))
+    }
+    
     func testMultiFingerGateCancelsSlide() {
         var t = 1.0
         // Finger 1 lands on right edge and begins sliding
