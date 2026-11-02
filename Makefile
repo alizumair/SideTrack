@@ -18,13 +18,11 @@ app: build
 	@mkdir -p $(MACOS_DIR)
 	@mkdir -p $(RESOURCES_DIR)
 	@cp -f .build/release/$(APP_NAME) $(MACOS_DIR)/$(APP_NAME)
+	@chmod +x $(MACOS_DIR)/$(APP_NAME)
 	@cp -f Resources/Info.plist $(CONTENTS_DIR)/Info.plist
-	@if [ -f Resources/EdgeBar.entitlements ]; then \
-		echo "==> Code-signing application bundle..."; \
-		codesign --force --deep --sign - --entitlements Resources/EdgeBar.entitlements $(APP_BUNDLE); \
-	else \
-		codesign --force --deep --sign - $(APP_BUNDLE); \
-	fi
+	@xattr -cr $(APP_BUNDLE) 2>/dev/null || true
+	@echo "==> Code-signing application bundle..."
+	@codesign --force --deep --sign - $(APP_BUNDLE)
 	@echo "==> App bundle successfully created at: $(APP_BUNDLE)"
 
 run: app
