@@ -17,13 +17,17 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
     
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.autosaveName = "SideTrackStatusItem"
+        statusItem.behavior = [.removalAllowed]
         statusItem.isVisible = true
         
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "SideTrack")
+            let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+            let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "SideTrack")?.withSymbolConfiguration(config)
             image?.isTemplate = true
             button.image = image
-            button.toolTip = "SideTrack (EdgeBar)"
+            button.imagePosition = .imageOnly
+            button.toolTip = "SideTrack"
         }
         
         buildMenu()
