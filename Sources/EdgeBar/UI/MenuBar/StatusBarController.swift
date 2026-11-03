@@ -22,27 +22,44 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
         statusItem.isVisible = true
         
         if let button = statusItem.button {
-            if let icon = NSApp.applicationIconImage ?? NSImage(named: "AppIcon") {
-                let size = NSSize(width: 18, height: 18)
-                let menuImage = NSImage(size: size)
-                menuImage.lockFocus()
-                let path = NSBezierPath(roundedRect: NSRect(origin: .zero, size: size), xRadius: 4, yRadius: 4)
-                path.addClip()
-                icon.draw(in: NSRect(origin: .zero, size: size), from: .zero, operation: .sourceOver, fraction: 1.0)
-                menuImage.unlockFocus()
-                menuImage.isTemplate = false
-                button.image = menuImage
-            } else {
-                let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
-                let image = NSImage(systemSymbolName: "slider.vertical.3", accessibilityDescription: "EdgeBar")?.withSymbolConfiguration(config)
-                image?.isTemplate = true
-                button.image = image
-            }
+            button.image = createMenuBarIcon()
             button.imagePosition = .imageOnly
             button.toolTip = "EdgeBar"
         }
         
         buildMenu()
+    }
+    
+    private func createMenuBarIcon() -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { _ in
+            // Outer trackpad boundary
+            let trackpadRect = NSRect(x: 1.5, y: 3.2, width: 15.0, height: 11.6)
+            let outerPath = NSBezierPath(roundedRect: trackpadRect, xRadius: 2.2, yRadius: 2.2)
+            outerPath.lineWidth = 1.2
+            NSColor.black.setStroke()
+            outerPath.stroke()
+            
+            // Left edge slider bar (Display Brightness)
+            let leftBar = NSRect(x: 3.0, y: 4.8, width: 1.8, height: 8.4)
+            let leftPath = NSBezierPath(roundedRect: leftBar, xRadius: 0.9, yRadius: 0.9)
+            NSColor.black.setFill()
+            leftPath.fill()
+            
+            // Right edge slider bar (Volume Control)
+            let rightBar = NSRect(x: 13.2, y: 4.8, width: 1.8, height: 8.4)
+            let rightPath = NSBezierPath(roundedRect: rightBar, xRadius: 0.9, yRadius: 0.9)
+            rightPath.fill()
+            
+            // Bottom edge scrub bar (Tab switch & Media scrub)
+            let bottomBar = NSRect(x: 5.6, y: 3.9, width: 6.8, height: 1.4)
+            let bottomPath = NSBezierPath(roundedRect: bottomBar, xRadius: 0.7, yRadius: 0.7)
+            bottomPath.fill()
+            
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
     
     public func buildMenu() {
@@ -85,6 +102,16 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
         )
         toggleItem.target = self
         menu.addItem(toggleItem)
+        
+        if ScreenRecordingManager.shared.isRecording {
+            let stopRecItem = NSMenuItem(
+                title: "🔴 Stop Screen Recording",
+                action: #selector(stopRecordingClicked),
+                keyEquivalent: ""
+            )
+            stopRecItem.target = self
+            menu.addItem(stopRecItem)
+        }
         
         menu.addItem(NSMenuItem.separator())
         
@@ -129,6 +156,11 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
     
     @objc private func toggleEnabled() {
         appState.settingsStore.settings.isEnabled.toggle()
+        buildMenu()
+    }
+    
+    @objc private func stopRecordingClicked() {
+        ScreenRecordingManager.shared.stopRecording()
         buildMenu()
     }
     

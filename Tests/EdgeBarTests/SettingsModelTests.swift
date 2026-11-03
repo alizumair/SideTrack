@@ -7,11 +7,18 @@ final class SettingsModelTests: XCTestCase {
         original.edgeWidthFraction = 0.22
         original.edgeHeightFraction = 0.15
         original.sensitivity = 1.8
+        original.tabSwitchSensitivity = 0.7
         original.invertVerticalAxis = true
         original.cursorFreezingEnabled = false
         original.hapticsEnabled = false
         original.leftEdgeAction = .volume
         original.rightEdgeAction = .brightness
+        original.bottomLeftHoldAction = .screenRecording
+        original.bottomRightHoldAction = .screenshot
+        original.screenshotMode = .interactive
+        original.recordingMode = .fullScreenWithStopButton
+        original.showHoldCountdownTimer = true
+        original.customMediaSaveDirectory = "/tmp/CustomScreenshots"
         
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -23,9 +30,16 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertEqual(original, decoded)
         XCTAssertEqual(decoded.edgeWidthFraction, 0.22)
         XCTAssertEqual(decoded.sensitivity, 1.8)
+        XCTAssertEqual(decoded.tabSwitchSensitivity, 0.7)
         XCTAssertEqual(decoded.invertVerticalAxis, true)
         XCTAssertEqual(decoded.leftEdgeAction, .volume)
         XCTAssertEqual(decoded.rightEdgeAction, .brightness)
+        XCTAssertEqual(decoded.bottomLeftHoldAction, .screenRecording)
+        XCTAssertEqual(decoded.bottomRightHoldAction, .screenshot)
+        XCTAssertEqual(decoded.screenshotMode, .interactive)
+        XCTAssertEqual(decoded.recordingMode, .fullScreenWithStopButton)
+        XCTAssertEqual(decoded.showHoldCountdownTimer, true)
+        XCTAssertEqual(decoded.customMediaSaveDirectory, "/tmp/CustomScreenshots")
     }
     
     func testSettingsStorePersistence() {

@@ -19,6 +19,7 @@ public final class AccessibilityManager: ObservableObject {
     
     public func checkStatus() {
         let trusted = AXIsProcessTrusted()
+        EdgeBarLogger.log("AccessibilityManager checkStatus: AXIsProcessTrusted=\(trusted)")
         DispatchQueue.main.async { [weak self] in
             self?.isTrusted = trusted
         }
@@ -35,6 +36,15 @@ public final class AccessibilityManager: ObservableObject {
             NSWorkspace.shared.open(url)
         }
         startPollingForPermission()
+    }
+    
+    public func resetPermissionCache() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        task.arguments = ["reset", "Accessibility", "io.github.edgebar"]
+        try? task.run()
+        task.waitUntilExit()
+        checkStatus()
     }
     
     public func startPollingForPermission() {

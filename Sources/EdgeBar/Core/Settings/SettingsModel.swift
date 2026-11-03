@@ -27,6 +27,35 @@ public enum CornerAction: String, Codable, CaseIterable, Identifiable, Sendable 
     public var id: String { rawValue }
 }
 
+public enum CornerHoldAction: String, Codable, CaseIterable, Identifiable, Sendable {
+    case screenshot = "Take Screenshot"
+    case screenRecording = "Screen Recording"
+    case toggleMute = "Toggle Mute"
+    case playPause = "Play / Pause"
+    case lockScreen = "Lock Screen"
+    case customScript = "Run Custom Script"
+    case disabled = "Disabled"
+    
+    public var id: String { rawValue }
+}
+
+public enum ScreenshotMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case systemGiven = "Full Screen"
+    case interactive = "Crop Screen (Area Selection)"
+    case systemApp = "macOS Screenshot Tool (Cmd+Shift+5)"
+    case clipboard = "Silent to Clipboard"
+    
+    public var id: String { rawValue }
+}
+
+public enum ScreenRecordingMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case fullScreenWithStopButton = "Full Screen (with Stop Button)"
+    case cropScreenWithStopButton = "Crop Screen (with Stop Button)"
+    case systemToolbar = "macOS Recording Tool (Cmd+Shift+5)"
+    
+    public var id: String { rawValue }
+}
+
 public enum HUDStyle: String, Codable, CaseIterable, Identifiable, Sendable {
     case minimalPill = "Minimalist Edge Pill"
     case liquidGlass = "Native Liquid Glass"
@@ -101,7 +130,7 @@ public struct AppProfile: Codable, Identifiable, Equatable, Sendable {
 }
 
 public struct SettingsModel: Codable, Equatable, Sendable {
-    public static let currentVersion = 4
+    public static let currentVersion = 10
     public static let storageKey = "io.github.edgebar.settings.v1"
     
     public var version: Int = SettingsModel.currentVersion
@@ -110,7 +139,7 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     // Granular Edge Dimensions (individual for each of the 4 borders)
     public var leftEdgeWidthFraction: Double = 0.10     // 10% outer left strip
     public var rightEdgeWidthFraction: Double = 0.10    // 10% outer right strip
-    public var bottomEdgeHeightFraction: Double = 0.10  // 10% outer bottom strip
+    public var bottomEdgeHeightFraction: Double = 0.16  // 16% outer bottom strip (comfortable thumb landing zone)
     public var topEdgeHeightFraction: Double = 0.10     // 10% outer top strip
     public var cornerZoneFraction: Double = 0.10        // 10% corner box
     
@@ -139,10 +168,11 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     
     // Feel, Haptics & Audio
     public var sensitivity: Double = 1.0
+    public var tabSwitchSensitivity: Double = 0.5      // Calmer tab switching (0.2...2.0)
     public var invertVerticalAxis: Bool = false
     public var cursorFreezingEnabled: Bool = true
     public var hapticsEnabled: Bool = true
-    public var audioFeedbackEnabled: Bool = true       // Subtle mechanical audio click
+    public var audioFeedbackEnabled: Bool = false      // Disabled by default (silent sliding)
     public var hapticSteps: Int = 64                   // 64 Steps (Ultra-Smooth)
     public var precisionMultiplier: Double = 0.25      // Quarter-step with ⇧⌥
     
@@ -154,17 +184,26 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     public var doubleTapMaxInterval: Double = 0.35
     public var maxTapMovementThreshold: Double = 0.015 // Tight tap boundary (~1.5mm)
     
-    // Corner Hold Macros
+    // Corner Hold Macros & Gestures
     public var cornerHoldsEnabled: Bool = true
-    public var cornerHoldFraction: Double = 0.15       // 15% outer corner zones
-    public var screenshotHoldDuration: Double = 1.5    // Left corners (Top-Left / Bottom-Left)
-    public var screenRecordingHoldDuration: Double = 3.0 // Bottom-Right corner
+    public var cornerHoldFraction: Double = 0.15          // 15% outer corner zones
+    public var showHoldCountdownTimer: Bool = true         // 1 2 3 visual countdown HUD
+    public var bottomLeftHoldAction: CornerHoldAction = .screenshot
+    public var bottomRightHoldAction: CornerHoldAction = .screenRecording
+    public var topLeftHoldAction: CornerHoldAction = .screenshot
+    public var screenshotMode: ScreenshotMode = .interactive
+    public var recordingMode: ScreenRecordingMode = .cropScreenWithStopButton
+    public var screenshotHoldDuration: Double = 1.5       // Left corners (Top-Left / Bottom-Left)
+    public var screenRecordingHoldDuration: Double = 3.0   // Bottom-Right corner
+    
+    // Save Destination for Screenshots & Screen Recordings
+    public var customMediaSaveDirectory: String = ""       // Empty string means system default (e.g. ~/Documents or ~/Desktop)
     
     // Scripting & Custom Triggers
     public var customScriptTrigger: CustomScriptTrigger = CustomScriptTrigger(type: .shortcut, payload: "")
     
     // App-Specific Context Profiles & Game Mode
-    public var gameModeEnabled: Bool = true             // Disable gestures in full-screen games / apps
+    public var gameModeEnabled: Bool = false            // Full-screen bypass (disabled by default so video & browsing work uninterrupted)
     public var profiles: [AppProfile] = [
         AppProfile(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID(),
@@ -193,6 +232,118 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     public var launchAtLogin: Bool = false
     
     public init() {}
+    
+    private enum CodingKeys: String, CodingKey {
+        case version, isEnabled
+        case leftEdgeWidthFraction, rightEdgeWidthFraction, bottomEdgeHeightFraction, topEdgeHeightFraction, cornerZoneFraction
+        case edgeWidthFraction, edgeHeightFraction
+        case leftEdgeAction, rightEdgeAction, bottomEdgeAction, topRightCornerAction, bottomDoubleTapAction
+        case sensitivity, tabSwitchSensitivity, invertVerticalAxis, cursorFreezingEnabled, hapticsEnabled, audioFeedbackEnabled, hapticSteps, precisionMultiplier
+        case hudStyle, showMenuBarIcon, showHUDOverlay, useSystemOSD, doubleTapMaxInterval, maxTapMovementThreshold
+        case cornerHoldsEnabled, cornerHoldFraction, showHoldCountdownTimer
+        case bottomLeftHoldAction, bottomRightHoldAction, topLeftHoldAction, screenshotMode, recordingMode
+        case screenshotHoldDuration, screenRecordingHoldDuration, customMediaSaveDirectory
+        case customScriptTrigger, gameModeEnabled, profiles, launchAtLogin
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        self.isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        
+        let legacyW = try container.decodeIfPresent(Double.self, forKey: .edgeWidthFraction) ?? 0.10
+        let legacyH = try container.decodeIfPresent(Double.self, forKey: .edgeHeightFraction) ?? 0.12
+        
+        self.leftEdgeWidthFraction = try container.decodeIfPresent(Double.self, forKey: .leftEdgeWidthFraction) ?? legacyW
+        self.rightEdgeWidthFraction = try container.decodeIfPresent(Double.self, forKey: .rightEdgeWidthFraction) ?? legacyW
+        self.bottomEdgeHeightFraction = try container.decodeIfPresent(Double.self, forKey: .bottomEdgeHeightFraction) ?? max(legacyH, 0.12)
+        self.topEdgeHeightFraction = try container.decodeIfPresent(Double.self, forKey: .topEdgeHeightFraction) ?? legacyH
+        self.cornerZoneFraction = try container.decodeIfPresent(Double.self, forKey: .cornerZoneFraction) ?? 0.10
+        
+        self.leftEdgeAction = try container.decodeIfPresent(EdgeAction.self, forKey: .leftEdgeAction) ?? .brightness
+        self.rightEdgeAction = try container.decodeIfPresent(EdgeAction.self, forKey: .rightEdgeAction) ?? .volume
+        self.bottomEdgeAction = try container.decodeIfPresent(EdgeAction.self, forKey: .bottomEdgeAction) ?? .mediaTrack
+        self.topRightCornerAction = try container.decodeIfPresent(CornerAction.self, forKey: .topRightCornerAction) ?? .toggleMute
+        self.bottomDoubleTapAction = try container.decodeIfPresent(CornerAction.self, forKey: .bottomDoubleTapAction) ?? .playPause
+        
+        self.sensitivity = try container.decodeIfPresent(Double.self, forKey: .sensitivity) ?? 1.0
+        self.tabSwitchSensitivity = try container.decodeIfPresent(Double.self, forKey: .tabSwitchSensitivity) ?? 0.5
+        self.invertVerticalAxis = try container.decodeIfPresent(Bool.self, forKey: .invertVerticalAxis) ?? false
+        self.cursorFreezingEnabled = try container.decodeIfPresent(Bool.self, forKey: .cursorFreezingEnabled) ?? true
+        self.hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
+        self.audioFeedbackEnabled = try container.decodeIfPresent(Bool.self, forKey: .audioFeedbackEnabled) ?? false
+        self.hapticSteps = try container.decodeIfPresent(Int.self, forKey: .hapticSteps) ?? 64
+        self.precisionMultiplier = try container.decodeIfPresent(Double.self, forKey: .precisionMultiplier) ?? 0.25
+        
+        self.hudStyle = try container.decodeIfPresent(HUDStyle.self, forKey: .hudStyle) ?? .minimalPill
+        self.showMenuBarIcon = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarIcon) ?? true
+        self.showHUDOverlay = try container.decodeIfPresent(Bool.self, forKey: .showHUDOverlay) ?? true
+        self.useSystemOSD = try container.decodeIfPresent(Bool.self, forKey: .useSystemOSD) ?? true
+        self.doubleTapMaxInterval = try container.decodeIfPresent(Double.self, forKey: .doubleTapMaxInterval) ?? 0.35
+        self.maxTapMovementThreshold = try container.decodeIfPresent(Double.self, forKey: .maxTapMovementThreshold) ?? 0.015
+        
+        self.cornerHoldsEnabled = try container.decodeIfPresent(Bool.self, forKey: .cornerHoldsEnabled) ?? true
+        self.cornerHoldFraction = try container.decodeIfPresent(Double.self, forKey: .cornerHoldFraction) ?? 0.15
+        self.showHoldCountdownTimer = try container.decodeIfPresent(Bool.self, forKey: .showHoldCountdownTimer) ?? true
+        self.bottomLeftHoldAction = try container.decodeIfPresent(CornerHoldAction.self, forKey: .bottomLeftHoldAction) ?? .screenshot
+        self.bottomRightHoldAction = try container.decodeIfPresent(CornerHoldAction.self, forKey: .bottomRightHoldAction) ?? .screenRecording
+        self.topLeftHoldAction = try container.decodeIfPresent(CornerHoldAction.self, forKey: .topLeftHoldAction) ?? .screenshot
+        self.screenshotMode = try container.decodeIfPresent(ScreenshotMode.self, forKey: .screenshotMode) ?? .interactive
+        self.recordingMode = try container.decodeIfPresent(ScreenRecordingMode.self, forKey: .recordingMode) ?? .cropScreenWithStopButton
+        self.screenshotHoldDuration = try container.decodeIfPresent(Double.self, forKey: .screenshotHoldDuration) ?? 1.5
+        self.screenRecordingHoldDuration = try container.decodeIfPresent(Double.self, forKey: .screenRecordingHoldDuration) ?? 3.0
+        self.customMediaSaveDirectory = try container.decodeIfPresent(String.self, forKey: .customMediaSaveDirectory) ?? ""
+        
+        self.customScriptTrigger = try container.decodeIfPresent(CustomScriptTrigger.self, forKey: .customScriptTrigger) ?? CustomScriptTrigger(type: .shortcut, payload: "")
+        self.gameModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .gameModeEnabled) ?? true
+        self.profiles = try container.decodeIfPresent([AppProfile].self, forKey: .profiles) ?? SettingsModel.default.profiles
+        self.launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(leftEdgeWidthFraction, forKey: .leftEdgeWidthFraction)
+        try container.encode(rightEdgeWidthFraction, forKey: .rightEdgeWidthFraction)
+        try container.encode(bottomEdgeHeightFraction, forKey: .bottomEdgeHeightFraction)
+        try container.encode(topEdgeHeightFraction, forKey: .topEdgeHeightFraction)
+        try container.encode(cornerZoneFraction, forKey: .cornerZoneFraction)
+        try container.encode(leftEdgeAction, forKey: .leftEdgeAction)
+        try container.encode(rightEdgeAction, forKey: .rightEdgeAction)
+        try container.encode(bottomEdgeAction, forKey: .bottomEdgeAction)
+        try container.encode(topRightCornerAction, forKey: .topRightCornerAction)
+        try container.encode(bottomDoubleTapAction, forKey: .bottomDoubleTapAction)
+        try container.encode(sensitivity, forKey: .sensitivity)
+        try container.encode(tabSwitchSensitivity, forKey: .tabSwitchSensitivity)
+        try container.encode(invertVerticalAxis, forKey: .invertVerticalAxis)
+        try container.encode(cursorFreezingEnabled, forKey: .cursorFreezingEnabled)
+        try container.encode(hapticsEnabled, forKey: .hapticsEnabled)
+        try container.encode(audioFeedbackEnabled, forKey: .audioFeedbackEnabled)
+        try container.encode(hapticSteps, forKey: .hapticSteps)
+        try container.encode(precisionMultiplier, forKey: .precisionMultiplier)
+        try container.encode(hudStyle, forKey: .hudStyle)
+        try container.encode(showMenuBarIcon, forKey: .showMenuBarIcon)
+        try container.encode(showHUDOverlay, forKey: .showHUDOverlay)
+        try container.encode(useSystemOSD, forKey: .useSystemOSD)
+        try container.encode(doubleTapMaxInterval, forKey: .doubleTapMaxInterval)
+        try container.encode(maxTapMovementThreshold, forKey: .maxTapMovementThreshold)
+        try container.encode(cornerHoldsEnabled, forKey: .cornerHoldsEnabled)
+        try container.encode(cornerHoldFraction, forKey: .cornerHoldFraction)
+        try container.encode(showHoldCountdownTimer, forKey: .showHoldCountdownTimer)
+        try container.encode(bottomLeftHoldAction, forKey: .bottomLeftHoldAction)
+        try container.encode(bottomRightHoldAction, forKey: .bottomRightHoldAction)
+        try container.encode(topLeftHoldAction, forKey: .topLeftHoldAction)
+        try container.encode(screenshotMode, forKey: .screenshotMode)
+        try container.encode(recordingMode, forKey: .recordingMode)
+        try container.encode(screenshotHoldDuration, forKey: .screenshotHoldDuration)
+        try container.encode(screenRecordingHoldDuration, forKey: .screenRecordingHoldDuration)
+        try container.encode(customMediaSaveDirectory, forKey: .customMediaSaveDirectory)
+        try container.encode(customScriptTrigger, forKey: .customScriptTrigger)
+        try container.encode(gameModeEnabled, forKey: .gameModeEnabled)
+        try container.encode(profiles, forKey: .profiles)
+        try container.encode(launchAtLogin, forKey: .launchAtLogin)
+    }
     
     public static var `default`: SettingsModel {
         SettingsModel()

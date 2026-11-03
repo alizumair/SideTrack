@@ -7,10 +7,11 @@ public enum HUDKind {
     case brightness(level: Float)
     case keyboardBacklight(level: Float)
     case micGain(level: Float)
-    case media(message: String, icon: String)
+    case media(message: String, icon: String, subtitle: String = "")
     case timelineScrub(forward: Bool)
     case tabSwitch(forward: Bool)
     case videoSeek(forward: Bool)
+    case countdown(title: String, icon: String, count: Int, total: Int)
 }
 
 public final class EdgeBarHUDOverlay {
@@ -22,11 +23,15 @@ public final class EdgeBarHUDOverlay {
     
     fileprivate final class HUDState: ObservableObject {
         @Published var title: String = ""
+        @Published var subtitle: String = ""
         @Published var iconName: String = "speaker.wave.3.fill"
         @Published var progress: Float = 0.5
         @Published var hasBar: Bool = true
         @Published var detailText: String = "50%"
         @Published var style: HUDStyle = .minimalPill
+        @Published var isCountdown: Bool = false
+        @Published var countdownNumber: Int = 1
+        @Published var countdownTotal: Int = 3
     }
     
     private init() {
@@ -110,21 +115,34 @@ public final class EdgeBarHUDOverlay {
                 self.stateObject.hasBar = false
                 self.stateObject.detailText = forward ? "+10s" : "-10s"
                 
-            case .media(let message, let icon):
+            case .media(let message, let icon, let subtitle):
+                self.stateObject.isCountdown = false
                 self.stateObject.title = message
+                self.stateObject.subtitle = subtitle
                 self.stateObject.iconName = icon
                 self.stateObject.progress = 1.0
                 self.stateObject.hasBar = false
-                self.stateObject.detailText = ""
+                self.stateObject.detailText = subtitle
+                
+            case .countdown(let title, let icon, let count, let total):
+                self.stateObject.isCountdown = true
+                self.stateObject.countdownNumber = count
+                self.stateObject.countdownTotal = total
+                self.stateObject.title = title
+                self.stateObject.iconName = icon
+                self.stateObject.progress = Float(count) / Float(max(total, 1))
+                self.stateObject.hasBar = false
+                self.stateObject.detailText = "\(count)"
             }
             
             guard let window = self.window, let screen = NSScreen.main ?? NSScreen.screens.first else { return }
             let screenRect = screen.visibleFrame
             
             if style == .minimalPill {
-                let x = screenRect.midX - 110
+                let pillWidth: CGFloat = self.stateObject.subtitle.isEmpty ? 220 : 250
+                let x = screenRect.midX - (pillWidth / 2)
                 let y = screenRect.minY + 65
-                window.setContentSize(NSSize(width: 220, height: 50))
+                window.setContentSize(NSSize(width: pillWidth, height: 50))
                 window.setFrameOrigin(NSPoint(x: x, y: y))
             } else {
                 let x = screenRect.midX - 85
@@ -146,7 +164,18 @@ public final class EdgeBarHUDOverlay {
                 })
             }
             self.dismissWorkItem = item
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: item)
+            // Allow countdown steps to stay active for 1.5s before fade out
+            let delay = (self.stateObject.isCountdown) ? 1.5 : 1.1
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+        }
+    }
+    
+    public func dismissImmediately() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let win = self.window else { return }
+            self.dismissWorkItem?.cancel()
+            win.orderOut(nil)
+            win.alphaValue = 0.0
         }
     }
 }
@@ -155,7 +184,46 @@ private struct HUDContentView: View {
     @ObservedObject var state: EdgeBarHUDOverlay.HUDState
     
     var body: some View {
-        if state.style == .minimalPill {
+        if state.isCountdown {
+            // Visual Countdown HUD ("1... 2... 3...")
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.2), lineWidth: 3)
+                        .frame(width: 26, height: 26)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(state.progress))
+                        .stroke(Color.red, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 26, height: 26)
+                    Text("\(state.countdownNumber)")
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(state.title)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    Text("Hold stationary...")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.75))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(width: 220, height: 44)
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .shadow(color: .black.opacity(0.4), radius: 14, x: 0, y: 6)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
+            )
+        } else if state.style == .minimalPill {
             // Minimalist compact pill style
             HStack(spacing: 12) {
                 Image(systemName: state.iconName)
@@ -182,6 +250,17 @@ private struct HUDContentView: View {
                         .foregroundColor(.white)
                         .frame(width: 38, alignment: .trailing)
                         .monospacedDigit()
+                } else if !state.subtitle.isEmpty {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(state.title)
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                        Text(state.subtitle)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.85))
+                            .lineLimit(1)
+                    }
                 } else {
                     Text(state.title)
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -191,7 +270,7 @@ private struct HUDContentView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .frame(width: 220, height: 44)
+            .frame(width: state.subtitle.isEmpty ? 220 : 250, height: 44)
             .background(
                 Capsule()
                     .fill(.ultraThinMaterial)
@@ -230,10 +309,18 @@ private struct HUDContentView: View {
                     }
                     .padding(.horizontal, 14)
                 } else {
-                    Text(state.title)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
+                    VStack(spacing: 4) {
+                        Text(state.title)
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                        if !state.subtitle.isEmpty {
+                            Text(state.subtitle)
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.85))
+                                .multilineTextAlignment(.center)
+                        }
+                    }
                 }
             }
             .padding(20)

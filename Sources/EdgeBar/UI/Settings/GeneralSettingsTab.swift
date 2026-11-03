@@ -26,20 +26,20 @@ public struct GeneralSettingsTab: View {
                 
                 Divider()
                 
-                // Accessibility Permissions
+                // System Permissions (Optional)
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("System Permissions")
+                    Text("System Permissions (Optional)")
                         .font(.subheadline.bold())
                     
                     HStack {
-                        Image(systemName: accessibility.isTrusted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                            .foregroundColor(accessibility.isTrusted ? .green : .orange)
+                        Image(systemName: accessibility.isTrusted ? "checkmark.circle.fill" : "info.circle.fill")
+                            .foregroundColor(accessibility.isTrusted ? .green : .blue)
                             .font(.title3)
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(accessibility.isTrusted ? "Accessibility Granted" : "Accessibility Required")
+                            Text(accessibility.isTrusted ? "Accessibility Granted" : "All Core Gestures Active")
                                 .font(.body.weight(.medium))
-                            Text(accessibility.isTrusted ? "EdgeBar has hardware-level access to process trackpad frames." : "Grant permission in System Settings -> Privacy & Security -> Accessibility.")
+                            Text(accessibility.isTrusted ? "EdgeBar is fully authorized for advanced system automation." : "Trackpad gestures, Volume, Brightness, Tab Switching, Screenshots, and Screen Recording work 100% out of the box without requiring extra permissions.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -47,8 +47,8 @@ public struct GeneralSettingsTab: View {
                         Spacer()
                         
                         if !accessibility.isTrusted {
-                            Button("Grant Access") {
-                                accessibility.promptForAccessibility()
+                            Button("Open Settings") {
+                                accessibility.openSystemSettings()
                             }
                         }
                     }

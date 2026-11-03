@@ -23,7 +23,7 @@ app: build
 	@cp -f Resources/*.icns $(RESOURCES_DIR)/ 2>/dev/null || true
 	@xattr -cr $(APP_BUNDLE) 2>/dev/null || true
 	@echo "==> Code-signing application bundle..."
-	@codesign --force --deep --sign - $(APP_BUNDLE)
+	@codesign --force --deep --sign - --identifier "io.github.edgebar" -r='designated => identifier "io.github.edgebar"' $(APP_BUNDLE)
 	@echo "==> App bundle successfully created at: $(APP_BUNDLE)"
 
 run: app
@@ -36,7 +36,7 @@ settings: app
 
 install: app
 	@echo "==> Installing EdgeBar to /Applications/EdgeBar.app..."
-	@rm -rf /Applications/EdgeBar.app /Applications/SideTrack.app
+	@rm -rf /Applications/EdgeBar.app
 	@cp -R $(APP_BUNDLE) /Applications/EdgeBar.app
 	@echo "==> EdgeBar installed! Available in Launchpad and Spotlight."
 

@@ -1,24 +1,38 @@
 # EdgeBar 🎛️
 
-**EdgeBar** is an ultra-fast, native macOS utility app inspired by *SlideSense* that turns the outer edges of your MacBook trackpad (and Magic Trackpad) into seamless, invisible hardware control strips.
+**EdgeBar** is an ultra-fast, native macOS utility that turns the outer edges of your MacBook trackpad and Apple Magic Trackpad into seamless, invisible hardware control strips.
 
-Slide up or down the edges of your trackpad to smoothly adjust display brightness and volume with tactile haptic ticks, swipe across the bottom edge to change music tracks, and double-tap the top-right corner to toggle system mute — all without moving your mouse cursor or interfering with macOS native multi-finger scrolling and gestures.
+Slide along the edges of your trackpad to smoothly adjust display brightness and volume with tactile haptic ticks, navigate browser tabs, scrub video timelines, capture interactive cropped screenshots, and record cropped screen regions with a floating Dynamic Island recording HUD — all without moving your mouse cursor or interfering with macOS native multi-finger scrolling and navigation gestures.
 
 ---
 
 ## ✨ Features
 
-- **Direct Multitouch Contact Interception**: Dynamically links Apple's private `MultitouchSupport.framework` via `dlopen`. Bypasses sluggish `CGEventTap` APIs to process contact frames at the hardware sensor layer with zero latency.
+- **Direct Multitouch Contact Interception**: Dynamically links Apple's private `MultitouchSupport.framework` via `dlopen`. Processes contact frames directly at the hardware sensor layer with sub-millisecond responsiveness.
 - **Intelligent Multi-Finger Gate**: Whenever two or more fingers touch the pad, EdgeBar immediately yields and passes through to macOS. Standard 2-finger scrolling, pinch-to-zoom, and 3/4-finger desktop swipes remain 100% unaffected.
-- **Middle-Touch Rejection**: Contacts initiating outside designated edge strips (default: outer 18%) are strictly ignored for their entire lifespan, avoiding accidental activation while typing or navigating.
-- **Synchronized Force Touch Haptics**: Uses `NSHapticFeedbackManager` to trigger tactile click ticks synchronized with scalar volume and brightness steps (16, 32, or 64 steps).
+- **Middle-Touch Rejection**: Contacts initiating outside designated edge strips (default: outer 10–18%) are strictly ignored for their entire lifespan, avoiding accidental activation while typing or navigating.
+- **Synchronized Force Touch Haptics**: Uses `NSHapticFeedbackManager` to trigger tactile click ticks synchronized with scalar volume and brightness steps (16, 32, or 64 steps). Silent sliding by default, or optional subtle click sounds.
 - **Cursor Freezing**: Automatically dissociates the hardware cursor position (`CGAssociateMouseAndMouseCursorPosition`) while sliding along an edge so your mouse cursor remains parked on screen.
 - **Precision Modifiers**: Hold **Shift + Option (⇧⌥)** while sliding for quarter-step fine adjustment.
-- **Direct System Hardware Bridges**:
-  - **Volume**: Native CoreAudio API (`AudioObjectSetPropertyData`) with stereo-channel fallback and mute controls.
-  - **Brightness**: Private `DisplayServices.framework` (`DisplayServicesSetBrightness`) with key-event fallback.
-  - **OSD Integration**: Directly commands macOS native bezel overlays (`OSDManager`) or EdgeBar's custom floating frosted-glass HUD.
-- **Pure Swift Architecture**: SwiftUI for the multi-tab settings panel; AppKit for low-level system services.
+- **Context-Aware App Profiles**:
+  - **Web Browsers (Chrome, Safari, Brave, Arc, Firefox, Edge)**: Bottom edge swipe cycles smoothly forward and backward through open tabs.
+  - **Streaming & Video (YouTube, Netflix, Prime Video, QuickTime, IINA, VLC)**: Bottom edge automatically maps to video rewind and fast-forward scrub.
+  - **Custom App Triggers**: Map macOS Shortcuts, AppleScripts, or shell commands to corner macros.
+- **Corner Hold Macros with Visual Countdown Timer**:
+  - **Bottom-Left Corner (1.5s)**: Triggers **Crop Screenshot** with interactive crosshairs and camera shutter sound.
+  - **Bottom-Right Corner (3.0s)**: Triggers **Crop Screen Recording** with area drag selection and floating "Stop Recording" controller.
+  - **Top-Right Corner**: Double-tap toggles system Mute instantly.
+  - **Live Circular HUD**: Displays a 1... 2... 3... countdown HUD with synchronized haptic pulses during stationary corner holds.
+- **Floating Dynamic Island Recording Controller**:
+  - Displays live duration timer (`🔴 00:01`) and a floating **Stop Recording** button.
+  - Graceful `SIGINT` finalization ensures video files are never corrupted.
+- **Media Destination Manager**:
+  - Customizable folder destination for screenshots and recordings directly in **Settings ➜ Extras Tab**.
+  - Built-in "Choose Folder...", "Show in Finder", and "Reset to Default" actions.
+  - Displays a clean pop-up HUD notification on save (`Saved to Documents`).
+- **Native Monochrome Menu Bar Icon**:
+  - Clean vector template status item depicting trackpad boundary and active edge controls.
+  - Adapts automatically to macOS light mode, dark mode, accent colors, and menu selection highlights.
 - **Zero Idle CPU Footprint**: Multitouch callbacks only fire when fingers make physical contact with the glass; 0% CPU consumption when idle.
 - **Settings Persistence**: Configurations are stored as clean JSON in `UserDefaults` under key `io.github.edgebar.settings.v1`.
 
@@ -28,20 +42,21 @@ Slide up or down the edges of your trackpad to smoothly adjust display brightnes
 
 ```
 +--------------------------------------------------------------+
-| [ Left Edge (18%) ]                  [ Top-Right Corner ]   |
+| [ Left Edge (10%) ]                  [ Top-Right Corner ]   |
 |   Slide Up / Down:                     Double-Tap: Mute      |
 |   Display Brightness                                         |
 |                                                              |
 |                     Standard Trackpad Area                   |
 |                   (Native macOS Navigation)                  |
 |                                                              |
-|                                         [ Right Edge (18%) ] |
+|                                         [ Right Edge (10%) ] |
 |                                           Slide Up / Down:   |
 |                                           System Volume      |
 |                                                              |
-|               [ Bottom Edge Strip (18%) ]                    |
-|          Horizontal Swipe: Next / Previous Track             |
-|                Double-Tap: Play / Pause                      |
+| [ Bottom-Left Corner ]   [ Bottom Edge Strip (16%) ]  [ Bottom-Right Corner ]
+|   Hold 1.5s: Screenshot    Browser: Switch Tabs         Hold 3.0s: Screen Rec
+|   (Interactive Crop)       Video: Scrub Forward/Back   (Crop Area Recording)
+|                            Double-Tap: Play / Pause  
 +--------------------------------------------------------------+
 ```
 
@@ -49,8 +64,10 @@ Slide up or down the edges of your trackpad to smoothly adjust display brightnes
 | :--- | :--- | :--- | :--- |
 | **Left Edge** | Vertical Slide | Hold `⇧⌥` | Smooth Display Brightness (Quarter-step precision) |
 | **Right Edge** | Vertical Slide | Hold `⇧⌥` | Smooth System Volume (Quarter-step precision) |
-| **Bottom Edge** | Horizontal Swipe | Double-Tap | Swipe: Skip Track / Tap: Play & Pause |
+| **Bottom Edge** | Horizontal Swipe | Double-Tap | Browser: Switch Tabs / Media: Skip Track / Tap: Play & Pause |
 | **Top-Right Corner** | Double-Tap | — | Toggle System Mute |
+| **Bottom-Left Corner** | Stationary Hold (1.5s) | — | Interactive Crop Screenshot (Area Selection) |
+| **Bottom-Right Corner** | Stationary Hold (3.0s) | — | Interactive Crop Screen Recording (with Stop HUD) |
 
 ---
 
@@ -61,12 +78,10 @@ EdgeBar is organized into clean, decoupled layers adhering to professional macOS
 ```
 EdgeBar/
 ├── Package.swift                             # Swift Package Manager manifest
-├── Makefile                                  # Automation for build, run, and test
+├── Makefile                                  # Automation for build, install, and test
 ├── Resources/
-│   ├── Info.plist                            # LSUIElement = true (Menu-bar-only)
+│   ├── Info.plist                            # LSUIElement = true & Usage Descriptions
 │   └── EdgeBar.entitlements                  # Sandbox entitlements
-├── scripts/
-│   └── setup_github_repo.sh                  # One-click GitHub CLI publishing script
 ├── Sources/
 │   └── EdgeBar/
 │       ├── App/
@@ -76,11 +91,14 @@ EdgeBar/
 │       ├── Core/
 │       │   ├── Settings/
 │       │   │   ├── SettingsModel.swift       # Codable configuration data structure
-│       │   │   └── SettingsStore.swift       # JSON persistence under io.github.edgebar.settings.v1
+│       │   │   └── SettingsStore.swift       # JSON persistence & versioned migrations
 │       │   ├── StateMachine/
 │       │   │   ├── EdgeZone.swift            # Geometric classifier for edge strips & corners
 │       │   │   ├── GestureState.swift        # Finite state definitions & tap tracking
+│       │   │   ├── CornerHoldManager.swift   # Stationary corner hold detector & 1-2-3 timer
 │       │   │   └── SlideEngine.swift         # Hardware gesture state machine & multi-finger gate
+│       │   ├── Profiles/
+│       │   │   └── ProfileManager.swift      # Contextual app detection (browsers, video apps)
 │       │   └── Permissions/
 │       │       └── AccessibilityManager.swift# TCC Accessibility check & polling
 │       ├── Hardware/
@@ -96,17 +114,23 @@ EdgeBar/
 │       │   │   └── HapticFeedbackBridge.swift# NSHapticFeedbackManager tactile ticks
 │       │   ├── Cursor/
 │       │   │   └── CursorFreezer.swift       # CGAssociateMouseAndMouseCursorPosition toggling
-│       │   └── OSD/
-│       │       ├── OSDBridge.swift           # Native macOS OSDManager bezel trigger
-│       │       └── EdgeBarHUDOverlay.swift   # Custom translucent SwiftUI glass bezel
+│       │   ├── OSD/
+│       │   │   ├── OSDBridge.swift           # Native macOS OSDManager bezel trigger
+│       │   │   └── EdgeBarHUDOverlay.swift   # Custom translucent SwiftUI glass bezel
+│       │   ├── ScreenRecording/
+│       │   │   ├── ScreenRecordingManager.swift # QuickTime screencapture controller
+│       │   │   └── ScreenSelectionOverlay.swift # Interactive crosshairs crop selector
+│       │   └── MediaDestination/
+│       │       └── MediaDestinationManager.swift# Media directory resolution & file naming
 │       └── UI/
 │           ├── MenuBar/
-│           │   └── StatusBarController.swift # NSStatusItem with live readouts & controls
+│           │   └── StatusBarController.swift # Native monochrome template status bar item
 │           ├── Settings/
 │           │   ├── SettingsView.swift        # Multi-tab settings container
 │           │   ├── EdgesSettingsTab.swift    # Interactive visual trackpad map & dimensions
-│           │   ├── FeelSettingsTab.swift     # Sensitivity, haptic steps, & axis inversion
-│           │   ├── ExtrasSettingsTab.swift   # Precision modifiers & HUD configuration
+│           │   ├── FeelSettingsTab.swift     # Sensitivity, haptic steps, & tab switch feel
+│           │   ├── ExtrasSettingsTab.swift   # Corner holds, capture styles, & media folder
+│           │   ├── ProfilesSettingsTab.swift # App profile rules & custom scripts
 │           │   └── GeneralSettingsTab.swift  # Launch at login & accessibility status
 │           └── Onboarding/
 │               └── OnboardingWindowController.swift # Accessibility onboarding window
@@ -114,6 +138,8 @@ EdgeBar/
     └── EdgeBarTests/
         ├── SlideEngineTests.swift            # Unit test suite for multi-finger gate & gestures
         ├── SettingsModelTests.swift          # JSON encode/decode & store tests
+        ├── CornerHoldTests.swift             # Corner hold gestures & timer tests
+        ├── AdvancedFeaturesTests.swift       # Tab switching, media destinations & profiles
         └── EdgeZoneTests.swift               # Edge zone classification geometry tests
 ```
 
@@ -123,61 +149,37 @@ EdgeBar/
 
 EdgeBar requires **macOS 13.0+** and **Xcode 14+** (or the standalone Swift toolchain).
 
-### 1. Build Application Bundle
+### 1. Build and Install Application Bundle
 ```bash
-make app
+make install
 ```
-Compiles a release binary, structures the bundle at `build/EdgeBar.app`, copies `Info.plist`, and applies an ad-hoc code-signature.
+Compiles a release binary, structures the bundle at `build/EdgeBar.app`, code-signs the bundle with stable designated requirements, and installs it directly to `/Applications/EdgeBar.app`.
 
 ### 2. Launch the Application
 ```bash
 make run
 ```
-Builds the app bundle and opens `build/EdgeBar.app`. The EdgeBar slider icon will appear in your macOS menu bar.
+Builds the app bundle and opens `build/EdgeBar.app`. The EdgeBar trackpad icon will appear in your macOS menu bar.
 
 ### 3. Run Unit Tests
 ```bash
 make test
 ```
-Executes the comprehensive XCTest suite validating the `SlideEngine` state machine, multi-finger gate cancellation, middle touch rejection, modifier calculations, and JSON serialization.
+Executes the comprehensive 42-test XCTest suite validating the `SlideEngine` state machine, multi-finger gate cancellation, middle touch rejection, modifier calculations, corner holds, media destinations, and JSON serialization.
 
 ---
 
-## 🔒 Granting Permissions
+## 🔒 Permissions
 
-Because EdgeBar intercepts raw trackpad hardware frames:
+Because EdgeBar intercepts raw trackpad hardware frames and captures screens:
 
-1. When first launched, EdgeBar will display the **Permissions Onboarding Window**.
-2. Click **Grant Accessibility Permission** (or navigate manually to:  
-   `System Settings` ➜ `Privacy & Security` ➜ `Accessibility`).
-3. Toggle the switch next to **EdgeBar** to ON.
-4. EdgeBar will automatically detect the permission change and activate the trackpad listener.
-
----
-
-## 🌐 Publishing to GitHub
-
-To publish this project to GitHub using the GitHub CLI (`gh`):
-
-### Option A: Using the Automated Script
-```bash
-# Create and push to a public repository named EdgeBar
-./scripts/setup_github_repo.sh EdgeBar --public
-```
-
-### Option B: Manual Terminal Commands
-```bash
-# 1. Initialize local repository
-git init
-git branch -M main
-
-# 2. Stage and commit all files
-git add .
-git commit -m "Initial commit: EdgeBar native macOS trackpad hardware strips"
-
-# 3. Create repository and push using GitHub CLI
-gh repo create EdgeBar --public --source=. --remote=origin --push
-```
+1. **Accessibility Permission**:
+   - Required to detect physical multitouch contact frames.
+   - On first launch, EdgeBar prompts to enable Accessibility under:  
+     `System Settings` ➜ `Privacy & Security` ➜ `Accessibility`.
+2. **Screen Recording Permission**:
+   - Required when taking screenshots or screen recordings via corner holds.
+   - Configured with `NSScreenCaptureUsageDescription` in `Info.plist` and stable designated code-signing requirements to ensure macOS remembers your approval permanently.
 
 ---
 

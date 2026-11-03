@@ -5,9 +5,19 @@ import CoreGraphics
 private final class MockCornerHoldDelegate: CornerHoldManagerDelegate {
     var startedCorners: [CornerType] = []
     var triggeredActions: [CornerHoldAction] = []
+    var countdownSteps: [(corner: CornerType, count: Int, total: Int)] = []
+    var cancelCount = 0
     
     func cornerHoldDidStart(corner: CornerType) {
         startedCorners.append(corner)
+    }
+    
+    func cornerHoldDidCountdown(corner: CornerType, action: CornerHoldAction, count: Int, total: Int) {
+        countdownSteps.append((corner, count, total))
+    }
+    
+    func cornerHoldDidCancel() {
+        cancelCount += 1
     }
     
     func cornerHoldDidTrigger(action: CornerHoldAction) {
@@ -351,5 +361,58 @@ final class CornerHoldTests: XCTestCase {
         
         XCTAssertEqual(delegate.toggleMuteCount, 1)
         XCTAssertEqual(delegate.startedCornerHolds.count, 0)
+    }
+    
+    func testCornerHoldCountdownDispatched() {
+        let manager = CornerHoldManager()
+        let delegate = MockCornerHoldDelegate()
+        manager.delegate = delegate
+        
+        var settings = SettingsModel.default
+        settings.showHoldCountdownTimer = true
+        settings.screenRecordingHoldDuration = 3.0
+        
+        let c1 = TrackpadContact(id: 40, x: 0.95, y: 0.05, state: .starting, timestamp: 1.0)
+        let handled = manager.processFrame(contacts: [c1], settings: settings)
+        
+        XCTAssertTrue(handled)
+        XCTAssertTrue(manager.isHolding)
+        XCTAssertEqual(delegate.startedCorners, [.bottomRight])
+        XCTAssertEqual(delegate.countdownSteps.count, 1)
+        XCTAssertEqual(delegate.countdownSteps.first?.count, 1)
+        XCTAssertEqual(delegate.countdownSteps.first?.total, 3)
+        
+        // Cancel hold
+        manager.cancelHold()
+        XCTAssertFalse(manager.isHolding)
+        XCTAssertEqual(delegate.cancelCount, 1)
+    }
+    
+    func testConfigurableCornerHoldActions() {
+        let manager = CornerHoldManager()
+        let delegate = MockCornerHoldDelegate()
+        manager.delegate = delegate
+        
+        var triggerBlock: (() -> Void)?
+        manager.customScheduler = { duration, block in
+            triggerBlock = block
+            return DispatchWorkItem(block: block)
+        }
+        
+        var settings = SettingsModel.default
+        settings.bottomLeftHoldAction = .screenRecording
+        settings.bottomRightHoldAction = .screenshot
+        
+        // Touch in Bottom-Left should now trigger screenRecording
+        let c1 = TrackpadContact(id: 41, x: 0.05, y: 0.05, state: .starting, timestamp: 1.0)
+        _ = manager.processFrame(contacts: [c1], settings: settings)
+        triggerBlock?()
+        XCTAssertEqual(delegate.triggeredActions.last, .screenRecording)
+        
+        // Touch in Bottom-Right should now trigger screenshot
+        let c2 = TrackpadContact(id: 42, x: 0.95, y: 0.05, state: .starting, timestamp: 2.0)
+        _ = manager.processFrame(contacts: [c2], settings: settings)
+        triggerBlock?()
+        XCTAssertEqual(delegate.triggeredActions.last, .screenshot)
     }
 }

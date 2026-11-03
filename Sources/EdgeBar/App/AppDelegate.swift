@@ -20,6 +20,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start trackpad engine
         AppState.shared.startEngine()
         
+        // Quietly check accessibility status without popping up modal alerts
+        AccessibilityManager.shared.checkStatus()
+        
         // Open settings if requested via CLI flag
         if CommandLine.arguments.contains("--settings") || CommandLine.arguments.contains("-s") {
             statusBarController?.openSettings()

@@ -180,6 +180,56 @@ final class AdvancedFeaturesTests: XCTestCase {
         XCTAssertNotNil(browser)
         XCTAssertEqual(browser?.bottomScrubMode, .tabSwitch)
     }
+    
+    func testTabSwitchSensitivityDecreased() {
+        var settings = SettingsModel.default
+        settings.tabSwitchSensitivity = 0.5
+        
+        let browserProfile = AppProfile(
+            name: "Web Browsers",
+            bundleIdentifier: "com.google.Chrome",
+            bottomEdgeAction: .tabSwitch,
+            bottomScrubMode: .tabSwitch
+        )
+        settings.profiles = [browserProfile]
+        
+        let engine = SlideEngine(settings: settings)
+        engine.activeProfile = browserProfile
+        let delegate = MockScrubDelegate()
+        engine.delegate = delegate
+        
+        // Touch lands on bottom strip
+        let c1 = TrackpadContact(id: 1, x: 0.50, y: 0.05, state: .starting, timestamp: 1.0)
+        engine.processFrame(contacts: [c1], timestamp: 1.0)
+        
+        // At 0.5 sensitivity, candidate threshold is 0.040 / 0.5 = 0.080 (~11mm)
+        // Moving dx = 0.030 should NOT trigger tab switch yet (decreased sensitivity!)
+        let c2 = TrackpadContact(id: 1, x: 0.53, y: 0.05, state: .touching, timestamp: 1.05)
+        engine.processFrame(contacts: [c2], timestamp: 1.05)
+        XCTAssertEqual(delegate.tabSwitches.count, 0)
+        
+        // Moving past 0.080 threshold (e.g. x = 0.59, dx = 0.09) should trigger exactly 1 tab switch
+        let c3 = TrackpadContact(id: 1, x: 0.59, y: 0.05, state: .touching, timestamp: 1.10)
+        engine.processFrame(contacts: [c3], timestamp: 1.10)
+        XCTAssertEqual(delegate.tabSwitches.count, 1)
+        XCTAssertEqual(delegate.tabSwitches.first, true)
+    }
+    
+    func testMediaDestinationResolution() {
+        var settings = SettingsModel.default
+        settings.customMediaSaveDirectory = "/tmp"
+        
+        let dir = MediaDestinationManager.effectiveMediaDirectory(settings: settings)
+        XCTAssertTrue(dir.path == "/tmp" || dir.path == "/private/tmp")
+        
+        let screenshotURL = MediaDestinationManager.generateScreenshotURL(settings: settings)
+        XCTAssertTrue(screenshotURL.path.contains("/Screenshot"))
+        XCTAssertTrue(screenshotURL.path.hasSuffix(".png"))
+        
+        let recordingURL = MediaDestinationManager.generateRecordingURL(settings: settings)
+        XCTAssertTrue(recordingURL.path.contains("/Screen Recording"))
+        XCTAssertTrue(recordingURL.path.hasSuffix(".mov"))
+    }
 }
 
 private final class MockScrubDelegate: SlideEngineDelegate {

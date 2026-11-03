@@ -16,8 +16,11 @@ public protocol SlideEngineDelegate: AnyObject {
     func slideEngineSlideStateChanged(isSliding: Bool)
     func slideEngineHapticTick()
     func slideEngineDidStartCornerHold(corner: CornerType)
+    func slideEngineDidCountdownCornerHold(corner: CornerType, action: CornerHoldAction, count: Int, total: Int)
+    func slideEngineDidCancelCornerHold()
     func slideEngineDidTriggerScreenshot()
     func slideEngineDidTriggerScreenRecording()
+    func slideEngineDidLockScreen()
     func slideEngineDidTriggerCustomScript()
 }
 
@@ -29,8 +32,11 @@ public extension SlideEngineDelegate {
     func slideEngineDidSwitchTab(forward: Bool) {}
     func slideEngineDidSeekVideo(forward: Bool) {}
     func slideEngineDidStartCornerHold(corner: CornerType) {}
+    func slideEngineDidCountdownCornerHold(corner: CornerType, action: CornerHoldAction, count: Int, total: Int) {}
+    func slideEngineDidCancelCornerHold() {}
     func slideEngineDidTriggerScreenshot() {}
     func slideEngineDidTriggerScreenRecording() {}
+    func slideEngineDidLockScreen() {}
     func slideEngineDidTriggerCustomScript() {}
 }
 
@@ -176,6 +182,7 @@ public final class SlideEngine: CornerHoldManagerDelegate {
                 ignoredTouchIDs.insert(contact.id)
                 return
             }
+            EdgeBarLogger.log("Touch started: id=\(contact.id), zone=\(zone), x=\(String(format: "%.3f", contact.x)), y=\(String(format: "%.3f", contact.y))")
             hasFiredMediaSkipForCurrentSlide = false
             phase = .candidate(
                 touchID: contact.id,
@@ -199,7 +206,8 @@ public final class SlideEngine: CornerHoldManagerDelegate {
             let duration = timestamp - startTime
             
             if contact.state.isTerminating {
-                if zone == .bottom && absDx >= 0.020 && absDx > absDy {
+                if zone == .bottom && absDx >= 0.015 && absDx > absDy {
+                    ProfileManager.shared.evaluateFrontmostApp(settings: settings)
                     handleBottomSwipe(forward: dx > 0)
                 } else {
                     let tapThreshold: Float = 0.020
@@ -212,7 +220,13 @@ public final class SlideEngine: CornerHoldManagerDelegate {
             }
             
             if cornerHoldManager.isHolding {
-                return
+                // If user started sliding horizontally away from the corner, cancel corner hold
+                let inCorner = cornerHoldManager.classifyCorner(x: contact.x, y: contact.y, cornerFraction: Float(settings.cornerHoldFraction)) != nil
+                if zone == .bottom && absDx >= 0.045 && !inCorner {
+                    cornerHoldManager.cancelHold()
+                } else {
+                    return
+                }
             }
             
             if zone == .left || zone == .right || zone == .topRightCorner {
@@ -236,18 +250,23 @@ public final class SlideEngine: CornerHoldManagerDelegate {
                     processSlideDelta(zone: zone, deltaX: dx, deltaY: dy)
                 }
             } else if zone == .bottom {
-                if dy > 0.040 && dy > (absDx * 1.8) {
+                if dy > 0.050 && dy > (absDx * 1.8) {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
                 }
                 
-                if absDx >= 0.020 && absDx >= absDy {
-                    ProfileManager.shared.evaluateFrontmostApp(settings: settings)
+                ProfileManager.shared.evaluateFrontmostApp(settings: settings)
+                
+                let isTabSwitch = (effectiveBottomScrubMode == .tabSwitch)
+                let tabSens = max(0.2, min(2.0, settings.tabSwitchSensitivity))
+                let minDx: Float = isTabSwitch ? Float(0.040 / tabSens) : 0.015
+                
+                if absDx >= minDx && absDx >= (absDy * 0.6) {
                     phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
                     accumulatedBottomDx = 0.0
                     startSlide()
-                    processBottomSlideDelta(deltaX: dx)
+                    handleBottomSwipe(forward: dx > 0)
                 }
             }
             
@@ -290,7 +309,7 @@ public final class SlideEngine: CornerHoldManagerDelegate {
                         return
                     }
                 }
-                if zone == .bottom && contact.y > Float(settings.bottomEdgeHeightFraction) * 1.25 {
+                if zone == .bottom && contact.y > max(Float(settings.bottomEdgeHeightFraction) * 1.8, 0.20) {
                     endSlide(cancelled: true)
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
@@ -307,6 +326,8 @@ public final class SlideEngine: CornerHoldManagerDelegate {
     }
     
     private func handleBottomSwipe(forward: Bool) {
+        EdgeBarLogger.log("handleBottomSwipe: forward=\(forward), mode=\(effectiveBottomScrubMode)")
+        NSLog("[EdgeBar] handleBottomSwipe: forward=%d, effectiveMode=%@", forward ? 1 : 0, effectiveBottomScrubMode.rawValue)
         switch effectiveBottomScrubMode {
         case .tabSwitch:
             delegate?.slideEngineDidSwitchTab(forward: forward)
@@ -326,7 +347,8 @@ public final class SlideEngine: CornerHoldManagerDelegate {
         
         switch effectiveBottomScrubMode {
         case .tabSwitch:
-            let stepThreshold: Float = 0.035
+            let tabSens = max(0.2, min(2.0, settings.tabSwitchSensitivity))
+            let stepThreshold: Float = Float(0.080 / tabSens)
             while accumulatedBottomDx >= stepThreshold {
                 delegate?.slideEngineDidSwitchTab(forward: true)
                 accumulatedBottomDx -= stepThreshold
@@ -503,6 +525,14 @@ public final class SlideEngine: CornerHoldManagerDelegate {
         delegate?.slideEngineDidStartCornerHold(corner: corner)
     }
     
+    public func cornerHoldDidCountdown(corner: CornerType, action: CornerHoldAction, count: Int, total: Int) {
+        delegate?.slideEngineDidCountdownCornerHold(corner: corner, action: action, count: count, total: total)
+    }
+    
+    public func cornerHoldDidCancel() {
+        delegate?.slideEngineDidCancelCornerHold()
+    }
+    
     public func cornerHoldDidTrigger(action: CornerHoldAction) {
         if let touchID = cornerHoldManager.activeTouchID {
             ignoredTouchIDs.insert(touchID)
@@ -513,6 +543,16 @@ public final class SlideEngine: CornerHoldManagerDelegate {
             delegate?.slideEngineDidTriggerScreenshot()
         case .screenRecording:
             delegate?.slideEngineDidTriggerScreenRecording()
+        case .toggleMute:
+            delegate?.slideEngineDidToggleMute()
+        case .playPause:
+            delegate?.slideEngineDidPlayPause()
+        case .lockScreen:
+            delegate?.slideEngineDidLockScreen()
+        case .customScript:
+            delegate?.slideEngineDidTriggerCustomScript()
+        case .disabled:
+            break
         }
     }
 }

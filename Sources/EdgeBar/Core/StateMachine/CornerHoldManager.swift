@@ -19,14 +19,16 @@ public enum CornerType: String, CaseIterable, Equatable, Sendable {
     }
 }
 
-public enum CornerHoldAction: String, Equatable, Sendable {
-    case screenshot
-    case screenRecording
-}
-
 public protocol CornerHoldManagerDelegate: AnyObject {
     func cornerHoldDidStart(corner: CornerType)
+    func cornerHoldDidCountdown(corner: CornerType, action: CornerHoldAction, count: Int, total: Int)
+    func cornerHoldDidCancel()
     func cornerHoldDidTrigger(action: CornerHoldAction)
+}
+
+public extension CornerHoldManagerDelegate {
+    func cornerHoldDidCountdown(corner: CornerType, action: CornerHoldAction, count: Int, total: Int) {}
+    func cornerHoldDidCancel() {}
 }
 
 public final class CornerHoldManager {
@@ -40,6 +42,7 @@ public final class CornerHoldManager {
     private var _isHolding: Bool = false
     private var _hasTriggeredForCurrentTouch: Bool = false
     private var holdWorkItem: DispatchWorkItem?
+    private var countdownWorkItems: [DispatchWorkItem] = []
     
     public var activeCorner: CornerType? {
         lock.lock()
@@ -150,14 +153,14 @@ public final class CornerHoldManager {
                 return false
             }
             
-            // Stationary check: movement threshold 0.015 (~1.5mm)
+            // Stationary check: movement threshold 0.045 (~6mm) to allow natural resting thumb stability
             let dx = contact.x - Float(startPos.x)
             let dy = contact.y - Float(startPos.y)
             let movement = hypot(dx, dy)
             
             // Check if finger moved too much or wandered out of corner zone
             let stillInCorner = classifyCorner(x: contact.x, y: contact.y, cornerFraction: fraction) == corner
-            if movement > Float(settings.maxTapMovementThreshold) || !stillInCorner {
+            if movement > 0.045 || !stillInCorner {
                 internalCancelHold()
                 lock.unlock()
                 return false
@@ -176,18 +179,24 @@ public final class CornerHoldManager {
         
         // Determine action and duration
         let action: CornerHoldAction
-        let duration: Double
         switch corner {
-        case .topLeft, .bottomLeft:
-            action = .screenshot
-            duration = settings.screenshotHoldDuration
+        case .topLeft:
+            action = settings.topLeftHoldAction
+        case .bottomLeft:
+            action = settings.bottomLeftHoldAction
         case .bottomRight:
-            action = .screenRecording
-            duration = settings.screenRecordingHoldDuration
+            action = settings.bottomRightHoldAction
         case .topRight:
             lock.unlock()
             return false
         }
+        
+        guard action != .disabled else {
+            lock.unlock()
+            return false
+        }
+        
+        let duration: Double = (action == .screenRecording) ? settings.screenRecordingHoldDuration : settings.screenshotHoldDuration
         
         // Begin tracking hold
         _activeTouchID = contact.id
@@ -222,6 +231,26 @@ public final class CornerHoldManager {
             let item = DispatchWorkItem(block: block)
             self.holdWorkItem = item
             DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: item)
+            
+            // Schedule countdown ticks (1... 2... 3...)
+            if settings.showHoldCountdownTimer {
+                let totalSeconds = max(1, Int(round(duration)))
+                self.delegate?.cornerHoldDidCountdown(corner: corner, action: action, count: 1, total: totalSeconds)
+                
+                if totalSeconds > 1 {
+                    for sec in 2...totalSeconds {
+                        let delay = Double(sec - 1)
+                        if delay < duration {
+                            let tickItem = DispatchWorkItem { [weak self] in
+                                guard let self = self, self.isHolding, self._activeTouchID == touchID else { return }
+                                self.delegate?.cornerHoldDidCountdown(corner: corner, action: action, count: sec, total: totalSeconds)
+                            }
+                            self.countdownWorkItems.append(tickItem)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: tickItem)
+                        }
+                    }
+                }
+            }
         }
         
         lock.unlock()
@@ -241,10 +270,13 @@ public final class CornerHoldManager {
     private func internalCancelHold() {
         holdWorkItem?.cancel()
         holdWorkItem = nil
+        countdownWorkItems.forEach { $0.cancel() }
+        countdownWorkItems.removeAll()
         _activeTouchID = nil
         _activeCorner = nil
         _startPosition = nil
         _isHolding = false
         _hasTriggeredForCurrentTouch = false
+        delegate?.cornerHoldDidCancel()
     }
 }

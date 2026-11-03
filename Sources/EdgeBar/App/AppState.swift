@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import AudioToolbox
 
 public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEngineDelegate {
     public static let shared = AppState()
@@ -164,6 +165,8 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
     }
     
     public func slideEngineDidSwitchTab(forward: Bool) {
+        EdgeBarLogger.log("AppState slideEngineDidSwitchTab forward=\(forward)")
+        NSLog("[EdgeBar] AppState slideEngineDidSwitchTab: forward=%d", forward ? 1 : 0)
         MediaKeyDispatcher.shared.switchTab(next: forward)
         if settingsStore.settings.showHUDOverlay {
             EdgeBarHUDOverlay.shared.show(.tabSwitch(forward: forward))
@@ -257,10 +260,49 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         }
     }
     
-    // MARK: - Corner Hold Macros
+    // MARK: - Corner Hold Macros & Gestures
     public func slideEngineDidStartCornerHold(corner: CornerType) {
         if settingsStore.settings.hapticsEnabled {
             HapticFeedbackBridge.shared.tick()
+        }
+    }
+    
+    public func slideEngineDidCountdownCornerHold(corner: CornerType, action: CornerHoldAction, count: Int, total: Int) {
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.tick()
+        }
+        
+        if settingsStore.settings.showHoldCountdownTimer {
+            let icon: String
+            switch action {
+            case .screenshot:
+                icon = "camera.fill"
+            case .screenRecording:
+                icon = "record.circle.fill"
+            case .toggleMute:
+                icon = "speaker.slash.fill"
+            case .playPause:
+                icon = "playpause.fill"
+            case .lockScreen:
+                icon = "lock.fill"
+            case .customScript:
+                icon = "bolt.fill"
+            case .disabled:
+                return
+            }
+            
+            EdgeBarHUDOverlay.shared.show(.countdown(
+                title: action.rawValue,
+                icon: icon,
+                count: count,
+                total: total
+            ))
+        }
+    }
+    
+    public func slideEngineDidCancelCornerHold() {
+        if settingsStore.settings.showHoldCountdownTimer {
+            EdgeBarHUDOverlay.shared.dismissImmediately()
         }
     }
     
@@ -269,18 +311,85 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
             HapticFeedbackBridge.shared.alignment()
         }
         
-        DispatchQueue.global(qos: .userInitiated).async {
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            task.arguments = ["-x", "-c"]
-            do {
-                try task.run()
-                task.waitUntilExit()
-                DispatchQueue.main.async {
-                    EdgeBarHUDOverlay.shared.show(.media(message: "Screenshot Copied", icon: "camera.fill"))
+        DispatchQueue.main.async {
+            EdgeBarHUDOverlay.shared.dismissImmediately()
+        }
+        
+        let mode = settingsStore.settings.screenshotMode
+        let fileURL = MediaDestinationManager.generateScreenshotURL(settings: settingsStore.settings)
+        let folderName = MediaDestinationManager.folderDisplayName(for: fileURL.deletingLastPathComponent())
+        
+        switch mode {
+        case .interactive:
+            // High-polish crop selection overlay
+            DispatchQueue.main.async {
+                ScreenSelectionOverlay.shared.selectArea(mode: .screenshot) { rect in
+                    guard let rect = rect else { return }
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let task = Process()
+                        task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                        let x = Int(round(rect.origin.x))
+                        let y = Int(round(rect.origin.y))
+                        let w = max(10, Int(round(rect.size.width)))
+                        let h = max(10, Int(round(rect.size.height)))
+                        task.arguments = ["-R", "\(x),\(y),\(w),\(h)", fileURL.path]
+                        do {
+                            try task.run()
+                            task.waitUntilExit()
+                            AudioServicesPlaySystemSound(1054)
+                            DispatchQueue.main.async {
+                                EdgeBarHUDOverlay.shared.show(.media(message: "Screenshot Saved", icon: "camera.fill", subtitle: "Saved to \(folderName)"))
+                            }
+                        } catch {
+                            NSLog("[EdgeBar] Failed to run screencapture -R: \(error)")
+                        }
+                    }
                 }
-            } catch {
-                NSLog("[EdgeBar] Failed to trigger screencapture: \(error)")
+            }
+            
+        case .systemGiven:
+            // Saves directly to designated folder, plays shutter sound
+            DispatchQueue.global(qos: .userInitiated).async {
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                task.arguments = [fileURL.path]
+                do {
+                    try task.run()
+                    task.waitUntilExit()
+                    AudioServicesPlaySystemSound(1054)
+                    DispatchQueue.main.async {
+                        EdgeBarHUDOverlay.shared.show(.media(message: "Screenshot Saved", icon: "camera.fill", subtitle: "Saved to \(folderName)"))
+                    }
+                } catch {
+                    NSLog("[EdgeBar] Failed to run screencapture: \(error)")
+                }
+            }
+            
+        case .systemApp:
+            // Open macOS Screenshot application (Cmd+Shift+5 bar)
+            DispatchQueue.main.async {
+                let url = URL(fileURLWithPath: "/System/Applications/Utilities/Screenshot.app")
+                let config = NSWorkspace.OpenConfiguration()
+                config.activates = true
+                NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in }
+            }
+            
+        case .clipboard:
+            // Copy directly to clipboard
+            DispatchQueue.global(qos: .userInitiated).async {
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                task.arguments = ["-c"]
+                do {
+                    try task.run()
+                    task.waitUntilExit()
+                    AudioServicesPlaySystemSound(1054)
+                    DispatchQueue.main.async {
+                        EdgeBarHUDOverlay.shared.show(.media(message: "Screenshot Copied", icon: "camera.fill", subtitle: "Copied to Clipboard"))
+                    }
+                } catch {
+                    NSLog("[EdgeBar] Failed to run screencapture -c: \(error)")
+                }
             }
         }
     }
@@ -290,22 +399,46 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
             HapticFeedbackBridge.shared.alignment()
         }
         
+        DispatchQueue.main.async {
+            EdgeBarHUDOverlay.shared.dismissImmediately()
+        }
+        
+        if ScreenRecordingManager.shared.isRecording {
+            ScreenRecordingManager.shared.stopRecording()
+            return
+        }
+        
+        let mode = settingsStore.settings.recordingMode
+        switch mode {
+        case .fullScreenWithStopButton:
+            DispatchQueue.main.async {
+                ScreenRecordingManager.shared.startRecording(crop: false)
+            }
+        case .cropScreenWithStopButton:
+            DispatchQueue.main.async {
+                ScreenRecordingManager.shared.startRecording(crop: true)
+            }
+        case .systemToolbar:
+            DispatchQueue.main.async {
+                let fileURL = MediaDestinationManager.generateRecordingURL()
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                task.arguments = ["-i", "-U", "-Jvideo", fileURL.path]
+                try? task.run()
+            }
+        }
+    }
+    
+    public func slideEngineDidLockScreen() {
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.alignment()
+        }
+        
         DispatchQueue.global(qos: .userInitiated).async {
             let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            task.arguments = ["-i", "-U", "-Jvideo", "-p"]
-            do {
-                try task.run()
-                DispatchQueue.main.async {
-                    EdgeBarHUDOverlay.shared.show(.media(message: "Screen Recording", icon: "record.circle"))
-                }
-            } catch {
-                NSLog("[EdgeBar] Failed to run screencapture with -Jvideo: \(error)")
-                let url = URL(fileURLWithPath: "/System/Applications/Utilities/Screenshot.app")
-                let config = NSWorkspace.OpenConfiguration()
-                config.activates = true
-                NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in }
-            }
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
+            task.arguments = ["displaysleepnow"]
+            try? task.run()
         }
     }
 }

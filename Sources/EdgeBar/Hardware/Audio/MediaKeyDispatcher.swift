@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import ApplicationServices
 
 public enum MediaKey: Int32 {
     case soundUp = 0
@@ -96,29 +97,263 @@ public final class MediaKeyDispatcher {
     }
     
     public func seekVideo(forward: Bool) {
-        // Universal streaming & media seek: Right Arrow (+5s..+10s) / Left Arrow (-5s..-10s)
         let key: CGKeyCode = forward ? 124 : 123
         let source = CGEventSource(stateID: .hidSystemState)
-        if let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
-           let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
+        let targetPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        
+        EdgeBarLogger.log("seekVideo: forward=\(forward), targetPID=\(targetPID ?? 0)")
+        NSLog("[EdgeBar] seekVideo called: forward=%d, targetPID=%d", forward ? 1 : 0, targetPID ?? 0)
+        
+        // 1. Send via System Events through osascript (bypasses accessibility permission barriers)
+        let keyCodeNum = forward ? 124 : 123
+        runOsaScriptAsync("tell application \"System Events\" to key code \(keyCodeNum)")
+        
+        // 2. Also dispatch via CGEvent to target PID and HID taps
+        if let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true) {
+            if let pid = targetPID { down.postToPid(pid) }
+            down.post(tap: .cgSessionEventTap)
             down.post(tap: .cghidEventTap)
-            up.post(tap: .cghidEventTap)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
+            let upSource = CGEventSource(stateID: .hidSystemState)
+            if let up = CGEvent(keyboardEventSource: upSource, virtualKey: key, keyDown: false) {
+                if let pid = targetPID { up.postToPid(pid) }
+                up.post(tap: .cgSessionEventTap)
+                up.post(tap: .cghidEventTap)
+            }
         }
     }
     
     public func switchTab(next: Bool) {
-        // macOS standard tab switching:
-        // Cmd + Shift + ] (Next Tab) -> virtual key 30 (ANSI Right Bracket)
-        // Cmd + Shift + [ (Previous Tab) -> virtual key 33 (ANSI Left Bracket)
-        let key: CGKeyCode = next ? 30 : 33
-        let source = CGEventSource(stateID: .hidSystemState)
-        if let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
-           let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
-            down.flags = [.maskCommand, .maskShift]
-            up.flags = [.maskCommand, .maskShift]
-            down.post(tap: .cghidEventTap)
-            up.post(tap: .cghidEventTap)
+        guard let app = NSWorkspace.shared.frontmostApplication else {
+            EdgeBarLogger.log("switchTab failed: frontmostApplication is nil")
+            return
         }
+        let pid = app.processIdentifier
+        let bundleID = app.bundleIdentifier?.lowercased() ?? ""
+        let name = app.localizedName?.lowercased() ?? ""
+        
+        EdgeBarLogger.log("switchTab requested: next=\(next), app=\(bundleID), name=\(name), pid=\(pid)")
+        NSLog("[EdgeBar] switchTab called: next=%d, app=%@, pid=%d", next ? 1 : 0, bundleID, pid)
+        
+        // Method 1: Google Chrome (Direct application script via /usr/bin/osascript)
+        if bundleID.contains("chrome") || name.contains("chrome") {
+            let script: String
+            if next {
+                script = """
+                tell application "Google Chrome" to tell front window
+                    set cur to active tab index
+                    set cnt to count of tabs
+                    if cur >= cnt then
+                        set active tab index to 1
+                    else
+                        set active tab index to (cur + 1)
+                    end if
+                end tell
+                """
+            } else {
+                script = """
+                tell application "Google Chrome" to tell front window
+                    set cur to active tab index
+                    set cnt to count of tabs
+                    if cur <= 1 then
+                        set active tab index to cnt
+                    else
+                        set active tab index to (cur - 1)
+                    end if
+                end tell
+                """
+            }
+            runOsaScriptAsync(script)
+            return
+        }
+        
+        // Method 2: Safari (Direct application script via /usr/bin/osascript)
+        if bundleID.contains("safari") || name.contains("safari") {
+            let script: String
+            if next {
+                script = """
+                tell application "Safari" to tell front window
+                    set cur to index of current tab
+                    set cnt to count of tabs
+                    if cur >= cnt then
+                        set current tab to tab 1
+                    else
+                        set current tab to tab (cur + 1)
+                    end if
+                end tell
+                """
+            } else {
+                script = """
+                tell application "Safari" to tell front window
+                    set cur to index of current tab
+                    set cnt to count of tabs
+                    if cur <= 1 then
+                        set current tab to tab cnt
+                    else
+                        set current tab to tab (cur - 1)
+                    end if
+                end tell
+                """
+            }
+            runOsaScriptAsync(script)
+            return
+        }
+        
+        // Method 3: Brave Browser
+        if bundleID.contains("brave") || name.contains("brave") {
+            let script: String
+            if next {
+                script = """
+                tell application "Brave Browser" to tell front window
+                    set cur to active tab index
+                    set cnt to count of tabs
+                    if cur >= cnt then
+                        set active tab index to 1
+                    else
+                        set active tab index to (cur + 1)
+                    end if
+                end tell
+                """
+            } else {
+                script = """
+                tell application "Brave Browser" to tell front window
+                    set cur to active tab index
+                    set cnt to count of tabs
+                    if cur <= 1 then
+                        set active tab index to cnt
+                    else
+                        set active tab index to (cur - 1)
+                    end if
+                end tell
+                """
+            }
+            runOsaScriptAsync(script)
+            return
+        }
+        
+        // Method 4: Microsoft Edge
+        if bundleID.contains("edgemac") || bundleID.contains("edge") || name.contains("edge") {
+            let script: String
+            if next {
+                script = """
+                tell application "Microsoft Edge" to tell front window
+                    set cur to active tab index
+                    set cnt to count of tabs
+                    if cur >= cnt then
+                        set active tab index to 1
+                    else
+                        set active tab index to (cur + 1)
+                    end if
+                end tell
+                """
+            } else {
+                script = """
+                tell application "Microsoft Edge" to tell front window
+                    set cur to active tab index
+                    set cnt to count of tabs
+                    if cur <= 1 then
+                        set active tab index to cnt
+                    else
+                        set active tab index to (cur - 1)
+                    end if
+                end tell
+                """
+            }
+            runOsaScriptAsync(script)
+            return
+        }
+        
+        // Method 5: Universal Fallback for Arc, Firefox, Orion, Opera, Vivaldi & all other apps
+        let targetItem = next ? "Select Next Tab" : "Select Previous Tab"
+        let fallbackItem = next ? "Show Next Tab" : "Show Previous Tab"
+        let thirdItem = next ? "Next Tab" : "Previous Tab"
+        let keyModifier = next ? "control down" : "{control down, shift down}"
+        
+        let universalScript = """
+        tell application "System Events"
+            set frontApp to first application process whose frontmost is true
+            try
+                tell frontApp to tell menu bar 1 to tell menu "Tab"
+                    click menu item "\(targetItem)"
+                end tell
+            on error
+                try
+                    tell frontApp to tell menu bar 1 to tell menu "Window"
+                        click menu item "\(fallbackItem)"
+                    end tell
+                on error
+                    try
+                        tell frontApp to tell menu bar 1 to tell menu "Window"
+                            click menu item "\(thirdItem)"
+                        end tell
+                    on error
+                        key code 48 using \(keyModifier)
+                    end try
+                end try
+            end try
+        end tell
+        """
+        runOsaScriptAsync(universalScript)
+    }
+    
+    private func runOsaScriptAsync(_ script: String) {
+        DispatchQueue.global(qos: .userInteractive).async {
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            proc.arguments = ["-e", script]
+            do {
+                try proc.run()
+                proc.waitUntilExit()
+                EdgeBarLogger.log("runOsaScriptAsync completed with exit=\(proc.terminationStatus)")
+            } catch {
+                EdgeBarLogger.log("runOsaScriptAsync execution error: \(error)")
+            }
+        }
+    }
+    
+    @discardableResult
+    private func triggerMenuAction(pid: pid_t, targetTitles: [String]) -> Bool {
+        let axApp = AXUIElementCreateApplication(pid)
+        var menuBarRef: AnyObject?
+        let err1 = AXUIElementCopyAttributeValue(axApp, kAXMenuBarAttribute as CFString, &menuBarRef)
+        guard err1 == .success, let mb = menuBarRef else {
+            EdgeBarLogger.log("triggerMenuAction: kAXMenuBarAttribute failed with err=\(err1.rawValue) for pid=\(pid)")
+            return false
+        }
+        
+        var menuBarItemsRef: AnyObject?
+        let err2 = AXUIElementCopyAttributeValue(mb as! AXUIElement, kAXChildrenAttribute as CFString, &menuBarItemsRef)
+        guard err2 == .success, let topMenus = menuBarItemsRef as? [AXUIElement] else {
+            EdgeBarLogger.log("triggerMenuAction: topMenus failed with err=\(err2.rawValue) for pid=\(pid)")
+            return false
+        }
+        
+        let targetsLower = targetTitles.map { $0.lowercased() }
+        
+        for topMenu in topMenus {
+            var subMenuRef: AnyObject?
+            guard AXUIElementCopyAttributeValue(topMenu, kAXChildrenAttribute as CFString, &subMenuRef) == .success,
+                  let subMenus = subMenuRef as? [AXUIElement], let menu = subMenus.first else { continue }
+            
+            var itemsRef: AnyObject?
+            guard AXUIElementCopyAttributeValue(menu, kAXChildrenAttribute as CFString, &itemsRef) == .success,
+                  let items = itemsRef as? [AXUIElement] else { continue }
+            
+            for item in items {
+                var titleVal: AnyObject?
+                if AXUIElementCopyAttributeValue(item, kAXTitleAttribute as CFString, &titleVal) == .success,
+                   let title = titleVal as? String {
+                    if targetsLower.contains(title.lowercased()) {
+                        let err = AXUIElementPerformAction(item, kAXPressAction as CFString)
+                        EdgeBarLogger.log("triggerMenuAction: pressed '\(title)', result=\(err.rawValue)")
+                        return err == .success
+                    }
+                }
+            }
+        }
+        EdgeBarLogger.log("triggerMenuAction: none of \(targetTitles) found in menu items for pid=\(pid)")
+        return false
     }
     
     public func scrollPage(up: Bool, deltaLines: Int32 = 3) {

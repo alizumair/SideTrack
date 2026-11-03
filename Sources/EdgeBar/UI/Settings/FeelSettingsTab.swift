@@ -14,22 +14,42 @@ public struct FeelSettingsTab: View {
                     .font(.headline)
                 
                 // Sensitivity
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Slide Sensitivity:")
-                            .frame(width: 140, alignment: .leading)
-                        Slider(
-                            value: $settingsStore.settings.sensitivity,
-                            in: 0.5...2.5,
-                            step: 0.1
-                        )
-                        Text(String(format: "%.1fx", settingsStore.settings.sensitivity))
-                            .frame(width: 45, alignment: .trailing)
-                            .monospacedDigit()
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Slide Sensitivity:")
+                                .frame(width: 160, alignment: .leading)
+                            Slider(
+                                value: $settingsStore.settings.sensitivity,
+                                in: 0.5...2.5,
+                                step: 0.1
+                            )
+                            Text(String(format: "%.1fx", settingsStore.settings.sensitivity))
+                                .frame(width: 45, alignment: .trailing)
+                                .monospacedDigit()
+                        }
+                        Text("Controls how rapidly volume and brightness ramp up per centimeter of physical slide.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    Text("Controls how rapidly volume and brightness ramp up per centimeter of physical slide.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Tab Switch Sensitivity:")
+                                .frame(width: 160, alignment: .leading)
+                            Slider(
+                                value: $settingsStore.settings.tabSwitchSensitivity,
+                                in: 0.2...2.0,
+                                step: 0.1
+                            )
+                            Text(String(format: "%.1fx", settingsStore.settings.tabSwitchSensitivity))
+                                .frame(width: 45, alignment: .trailing)
+                                .monospacedDigit()
+                        }
+                        Text("Controls the horizontal swipe distance along the bottom edge required to cycle browser tabs.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 Divider()
@@ -52,7 +72,7 @@ public struct FeelSettingsTab: View {
                             .padding(.leading, 20)
                             .font(.body)
                     }
-                    Text("Delivers Force Touch trackpad feedback and crisp audio ticks whenever a scalar step is crossed.")
+                    Text("Delivers silent Force Touch trackpad feedback whenever a scalar step is crossed. Sliders remain silent.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

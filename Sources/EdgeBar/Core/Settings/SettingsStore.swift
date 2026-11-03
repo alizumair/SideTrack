@@ -54,13 +54,55 @@ public final class SettingsStore: ObservableObject {
                     }
                     decoded.version = 4
                 }
+                if decoded.version < 5 {
+                    decoded.gameModeEnabled = false
+                    decoded.bottomEdgeHeightFraction = max(decoded.bottomEdgeHeightFraction, 0.15)
+                    decoded.version = 5
+                }
+                if decoded.version < 6 {
+                    decoded.bottomEdgeHeightFraction = max(decoded.bottomEdgeHeightFraction, 0.16)
+                    // Ensure Web Browsers profile is set to .tabSwitch
+                    for i in 0..<decoded.profiles.count {
+                        if decoded.profiles[i].name.lowercased().contains("browser") {
+                            decoded.profiles[i].bottomScrubMode = .tabSwitch
+                            decoded.profiles[i].bottomEdgeAction = .tabSwitch
+                        }
+                    }
+                    decoded.version = 6
+                }
+                if decoded.version < 7 {
+                    decoded.tabSwitchSensitivity = 0.5
+                    decoded.audioFeedbackEnabled = false
+                    decoded.version = 7
+                }
+                if decoded.version < 8 {
+                    decoded.showHoldCountdownTimer = true
+                    decoded.bottomLeftHoldAction = .screenshot
+                    decoded.bottomRightHoldAction = .screenRecording
+                    decoded.topLeftHoldAction = .screenshot
+                    decoded.screenshotMode = .systemGiven
+                    decoded.recordingMode = .fullScreenWithStopButton
+                    decoded.version = 8
+                }
+                if decoded.version < 9 {
+                    decoded.customMediaSaveDirectory = ""
+                    decoded.version = 9
+                }
+                if decoded.version < 10 {
+                    decoded.screenshotMode = .interactive
+                    decoded.recordingMode = .cropScreenWithStopButton
+                    decoded.version = 10
+                }
                 self.settings = decoded
+                save()
             } catch {
                 NSLog("[EdgeBar] Failed to decode settings, falling back to defaults: %@", error.localizedDescription)
                 self.settings = SettingsModel.default
+                save()
             }
         } else {
             self.settings = SettingsModel.default
+            save()
         }
     }
     

@@ -59,29 +59,81 @@ public final class ProfileManager: ObservableObject {
         let nameLower = appName.lowercased()
         let titleLower = windowTitle.lowercased()
         
-        // 1. Find matching profile (checking bundle ID, app name, and active window title)
+        let streamingKeywords = [
+            "netflix", "youtube", "disney", "prime video", "primevideo",
+            "hulu", "twitch", "max", "hbomax", "apple tv", "appletv",
+            "quicktime", "iina", "vlc", "infuse", "plex", "stremio"
+        ]
+        
+        let browserBundleIDs = [
+            "com.apple.safari", "com.google.chrome", "org.mozilla.firefox",
+            "company.thebrowser.browser", "com.brave.browser", "com.microsoft.edgemac",
+            "com.kagi.kagimacos", "com.operasoftware.opera", "com.vivaldi.vivaldi"
+        ]
+        let browserNames = [
+            "safari", "google chrome", "chrome", "firefox", "brave",
+            "brave browser", "microsoft edge", "arc", "orion", "opera", "vivaldi"
+        ]
+        let isBrowser = browserBundleIDs.contains(where: { currentLower == $0 || currentLower.hasPrefix($0) })
+            || browserNames.contains(where: { nameLower == $0 })
+        
+        let isStreaming = streamingKeywords.contains(where: {
+            currentLower.contains($0) || nameLower.contains($0) || titleLower.contains($0)
+        })
+        
         var matched: AppProfile? = nil
-        for profile in settings.profiles where profile.isEnabled {
-            let identifiers = profile.bundleIdentifier
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            
-            let matches = identifiers.contains { id in
-                guard !id.isEmpty else { return false }
-                return currentLower.contains(id) || nameLower.contains(id) || titleLower.contains(id)
+        
+        // 1. Web Browsers Profile (Always switch tabs when focused in Chrome, Safari, Arc, Brave, Firefox, Edge, etc.)
+        if isBrowser {
+            matched = settings.profiles.first(where: { $0.isEnabled && ($0.bottomScrubMode == .tabSwitch || $0.name.lowercased().contains("browser")) })
+            if matched == nil {
+                matched = AppProfile(
+                    name: "Web Browsers",
+                    bundleIdentifier: bundleID,
+                    bottomEdgeAction: .tabSwitch,
+                    bottomScrubMode: .tabSwitch
+                )
             }
-            
-            if matches {
-                matched = profile
-                break
+        } else {
+            // 2. Dedicated Streaming & Video Players (QuickTime, VLC, IINA, Infuse, Plex, Stremio, Apple TV, etc.)
+            if isStreaming {
+                matched = settings.profiles.first(where: { $0.isEnabled && ($0.bottomScrubMode == .videoSeek || $0.name.lowercased().contains("streaming")) })
+                if matched == nil {
+                    matched = AppProfile(
+                        name: "Streaming & Video",
+                        bundleIdentifier: bundleID,
+                        bottomEdgeAction: .videoSeek,
+                        bottomScrubMode: .videoSeek
+                    )
+                }
+            } else {
+                // 3. Match custom user-defined profiles by bundle identifier or title
+                for profile in settings.profiles where profile.isEnabled {
+                    let identifiers = profile.bundleIdentifier
+                        .split(separator: ",")
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                    
+                    let matches = identifiers.contains { id in
+                        guard !id.isEmpty else { return false }
+                        return currentLower.contains(id) || nameLower.contains(id) || titleLower.contains(id)
+                    }
+                    
+                    if matches {
+                        matched = profile
+                        break
+                    }
+                }
             }
         }
         
-        // 2. Check Full-Screen / Game Mode bypass
-        // Never bypass when watching video in full screen!
+        NSLog("[EdgeBar] evaluateFrontmostApp: app=%@, isBrowser=%d, profile=%@, scrubMode=%@",
+              bundleID, isBrowser ? 1 : 0, matched?.name ?? "none", matched?.bottomScrubMode.rawValue ?? "none")
+        
+        // Check Full-Screen / Game Mode bypass:
+        // Never bypass when watching video, switching tabs in browser, or editing timelines!
         var isFullScreen = false
-        let isStreamingOrMedia = matched?.bottomScrubMode == .videoSeek || matched?.bottomEdgeAction == .videoSeek
-        if settings.gameModeEnabled && !isStreamingOrMedia {
+        let isProtected = isStreaming || isBrowser || (matched?.bottomScrubMode == .timelineScrub)
+        if settings.gameModeEnabled && !isProtected {
             isFullScreen = isAppFullScreen(app: app)
         }
         self.isGameModeActive = isFullScreen
@@ -90,7 +142,42 @@ public final class ProfileManager: ObservableObject {
         onProfileChanged?(matched, isFullScreen)
     }
     
+    private func getActiveBrowserMediaContext(bundleID: String) -> String {
+        let bLower = bundleID.lowercased()
+        if bLower.contains("chrome") {
+            let script = "tell application \"Google Chrome\" to get URL of active tab of front window"
+            var error: NSDictionary?
+            if let appleScript = NSAppleScript(source: script) {
+                if let url = appleScript.executeAndReturnError(&error).stringValue {
+                    return url
+                }
+            }
+        } else if bLower.contains("safari") {
+            let script = "tell application \"Safari\" to get URL of current tab of front window"
+            var error: NSDictionary?
+            if let appleScript = NSAppleScript(source: script) {
+                if let url = appleScript.executeAndReturnError(&error).stringValue {
+                    return url
+                }
+            }
+        }
+        return ""
+    }
+    
     private func getFrontmostWindowTitle(for pid: pid_t) -> String {
+        // 1. Accessibility API (fast, works in macOS Sequoia without screen capture prompt)
+        let axApp = AXUIElementCreateApplication(pid)
+        var focusedWindow: AnyObject?
+        if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success,
+           let win = focusedWindow {
+            var titleVal: AnyObject?
+            if AXUIElementCopyAttributeValue(win as! AXUIElement, kAXTitleAttribute as CFString, &titleVal) == .success,
+               let titleStr = titleVal as? String, !titleStr.isEmpty {
+                return titleStr
+            }
+        }
+        
+        // 2. Fallback via CGWindowListCopyWindowInfo
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let windowInfoList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return ""
