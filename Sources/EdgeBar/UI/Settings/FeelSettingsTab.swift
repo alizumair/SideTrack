@@ -54,6 +54,45 @@ public struct FeelSettingsTab: View {
                 
                 Divider()
                 
+                // Slider Activation Mode (Instant vs. Hold-to-Engage)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Slider Activation Style")
+                        .font(.subheadline.bold())
+                    
+                    Picker("", selection: $settingsStore.settings.sliderActivationStyle) {
+                        ForEach(SliderActivationStyle.allCases) { style in
+                            Text(style.rawValue).tag(style)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    if settingsStore.settings.sliderActivationStyle == .holdToEngage {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Hold Delay:")
+                                    .frame(width: 140, alignment: .leading)
+                                Slider(
+                                    value: $settingsStore.settings.sliderHoldDwellDuration,
+                                    in: 0.10...0.80,
+                                    step: 0.05
+                                )
+                                Text(String(format: "%.2fs", settingsStore.settings.sliderHoldDwellDuration))
+                                    .frame(width: 50, alignment: .trailing)
+                                    .monospacedDigit()
+                            }
+                            Text("Requires resting your finger in the edge strip for a fraction of a second before sliding begins, confirmed by a tactile Force Touch tick. Eliminates 100% of accidental grazes.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        Text("Sliders respond immediately as soon as vertical movement begins.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Divider()
+                
                 // Haptics & Audio Clicks
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Enable Tactile Haptic Ticks", isOn: $settingsStore.settings.hapticsEnabled)

@@ -90,6 +90,7 @@ public final class SlideEngine: CornerHoldManagerDelegate {
     private var hasFiredMediaSkipForCurrentSlide: Bool = false
     private var accumulatedBottomDx: Float = 0.0
     private var isSlidingActive: Bool = false
+    private var hasLatchedCurrentCandidate: Bool = false
     
     // Test hook for simulating modifier flags without depending on UI events
     public var modifierFlagsProvider: (() -> NSEvent.ModifierFlags)?
@@ -184,6 +185,7 @@ public final class SlideEngine: CornerHoldManagerDelegate {
             }
             EdgeBarLogger.log("Touch started: id=\(contact.id), zone=\(zone), x=\(String(format: "%.3f", contact.x)), y=\(String(format: "%.3f", contact.y))")
             hasFiredMediaSkipForCurrentSlide = false
+            hasLatchedCurrentCandidate = false
             phase = .candidate(
                 touchID: contact.id,
                 zone: zone,
@@ -242,6 +244,31 @@ public final class SlideEngine: CornerHoldManagerDelegate {
                     ignoredTouchIDs.insert(touchID)
                     phase = .idle
                     return
+                }
+                
+                // Hold-to-Engage Micro-Dwell Gate
+                if settings.sliderActivationStyle == .holdToEngage {
+                    let dwell = Float(settings.sliderHoldDwellDuration)
+                    let currentDuration = Float(duration)
+                    
+                    if currentDuration < dwell {
+                        // Accidental swipe or quick graze: if moved too much before dwell completed, cancel
+                        if movement > 0.020 {
+                            ignoredTouchIDs.insert(touchID)
+                            phase = .idle
+                            return
+                        }
+                        // Still dwelling/holding stationary in edge zone: wait for dwell threshold
+                        return
+                    }
+                    
+                    // Dwell duration reached: fire tactile latch confirmation tick
+                    if !hasLatchedCurrentCandidate {
+                        hasLatchedCurrentCandidate = true
+                        if settings.hapticsEnabled {
+                            HapticFeedbackBridge.shared.alignment()
+                        }
+                    }
                 }
                 
                 if absDy >= 0.010 && absDy > absDx && inwardDx < 0.006 {

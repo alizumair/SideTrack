@@ -136,6 +136,11 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
         settingsItem.target = self
         menu.addItem(settingsItem)
         
+        let tourItem = NSMenuItem(title: "Feature Walkthrough & Guide...", action: #selector(openWalkthrough), keyEquivalent: "")
+        tourItem.image = NSImage(systemSymbolName: "play.rectangle.fill", accessibilityDescription: nil)
+        tourItem.target = self
+        menu.addItem(tourItem)
+        
         let permItem = NSMenuItem(title: "Permissions...", action: #selector(openPermissions), keyEquivalent: "")
         permItem.target = self
         menu.addItem(permItem)
@@ -187,6 +192,23 @@ public final class StatusBarController: NSObject, NSMenuDelegate {
             NSApp.activate(ignoringOtherApps: true)
             self.settingsWindow?.makeKeyAndOrderFront(nil)
             self.settingsWindow?.orderFrontRegardless()
+        }
+    }
+    
+    @objc public func openWalkthrough() {
+        Self.openWalkthroughInBrowser()
+    }
+    
+    public static func openWalkthroughInBrowser() {
+        if let url = Bundle.main.url(forResource: "walkthrough", withExtension: "html") {
+            NSWorkspace.shared.open(url)
+        } else {
+            let appPath = URL(fileURLWithPath: "/Applications/EdgeBar.app/Contents/Resources/walkthrough.html")
+            if FileManager.default.fileExists(atPath: appPath.path) {
+                NSWorkspace.shared.open(appPath)
+            } else if let fallback = URL(string: "https://github.com/alizumair/SideTrack/blob/main/docs/index.html") {
+                NSWorkspace.shared.open(fallback)
+            }
         }
     }
     

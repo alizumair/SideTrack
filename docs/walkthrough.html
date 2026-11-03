@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EdgeBar Interactive Feature Walkthrough</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @keyframes pulse-ring {
+      0% { transform: scale(0.8); opacity: 0.8; }
+      50% { transform: scale(1.4); opacity: 0.2; }
+      100% { transform: scale(0.8); opacity: 0.8; }
+    }
+    @keyframes scanline {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(1000%); }
+    }
+    .pulse-effect {
+      animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+    .trackpad-shadow {
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    }
+    .glass-hud {
+      background: rgba(30, 30, 35, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-3 sm:p-5 font-sans">
+  <div class="max-w-4xl mx-auto bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
+    
+    <!-- Header Banner -->
+    <div class="px-6 py-4 border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-3 bg-[var(--background)]/60">
+      <div class="flex items-center gap-3">
+        <!-- Native Menu Bar Icon Badge -->
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="3" width="14" height="12" rx="2.5" stroke="currentColor" stroke-width="1.3"/>
+            <rect x="3.5" y="4.5" width="1.8" height="9" rx="0.9" fill="currentColor"/>
+            <rect x="12.7" y="4.5" width="1.8" height="9" rx="0.9" fill="currentColor"/>
+            <rect x="6" y="13.2" width="6" height="1.4" rx="0.7" fill="currentColor"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight">EdgeBar Feature Walkthrough</h1>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 font-semibold border border-blue-500/20">macOS Native</span>
+          </div>
+          <p class="text-xs text-[var(--muted-foreground)]">Hardware trackpad edge controls • Zero idle CPU • Pure Multitouch</p>
+        </div>
+      </div>
+
+      <!-- Playback Controls -->
+      <div class="flex items-center gap-2">
+        <button id="btn-play-tour" onclick="toggleTourPlayback()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition">
+          <svg id="icon-play" class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <span id="text-play">Play Tour</span>
+        </button>
+        <button onclick="nextStep()" class="px-2.5 py-1.5 rounded-lg bg-[var(--background)] hover:bg-[var(--border)] text-xs font-medium border border-[var(--border)] transition">
+          Next ❯
+        </button>
+      </div>
+    </div>
+
+    <!-- Chapter Selector Tabs -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 text-xs font-medium border-b border-[var(--border)] bg-[var(--background)]/30">
+      <button onclick="selectChapter(0)" id="tab-0" class="py-2.5 px-2 text-center border-b-2 border-blue-500 text-blue-500 font-semibold transition">
+        1. Volume Slider
+      </button>
+      <button onclick="selectChapter(1)" id="tab-1" class="py-2.5 px-2 text-center border-b-2 border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+        2. Brightness Slider
+      </button>
+      <button onclick="selectChapter(2)" id="tab-2" class="py-2.5 px-2 text-center border-b-2 border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+        3. Tab Switching
+      </button>
+      <button onclick="selectChapter(3)" id="tab-3" class="py-2.5 px-2 text-center border-b-2 border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+        4. Crop Screenshot
+      </button>
+      <button onclick="selectChapter(4)" id="tab-4" class="col-span-2 sm:col-span-1 py-2.5 px-2 text-center border-b-2 border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition">
+        5. Crop Recording
+      </button>
+    </div>
+
+    <!-- Main Visual Stage (Video Simulator) -->
+    <div class="p-4 sm:p-6 space-y-6">
+      
+      <!-- Video Stage Screen Container -->
+      <div class="relative bg-gradient-to-b from-slate-900 to-black rounded-xl overflow-hidden border border-slate-800 shadow-inner h-[320px] flex items-center justify-center select-none">
+        
+        <!-- Mock macOS Menu Bar -->
+        <div class="absolute top-0 left-0 right-0 h-6 bg-black/40 backdrop-blur-md border-b border-white/10 px-3 flex items-center justify-between text-[11px] text-white/80 z-20">
+          <div class="flex items-center gap-3 font-semibold">
+            <span></span>
+            <span id="active-app-name">Chrome</span>
+            <span class="text-white/40 font-normal">File</span>
+            <span class="text-white/40 font-normal">Edit</span>
+            <span class="text-white/40 font-normal">View</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <!-- Native EdgeBar Menu Bar Icon -->
+            <div class="flex items-center text-white/90 bg-white/10 px-1.5 py-0.5 rounded">
+              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 18 18">
+                <rect x="2" y="3" width="14" height="12" rx="2.5" stroke="currentColor" stroke-width="1.3" fill="none"/>
+                <rect x="3.5" y="4.5" width="1.8" height="9" rx="0.9"/>
+                <rect x="12.7" y="4.5" width="1.8" height="9" rx="0.9"/>
+                <rect x="6" y="13.2" width="6" height="1.4" rx="0.7"/>
+              </svg>
+            </div>
+            <span>Tue 3:20 PM</span>
+          </div>
+        </div>
+
+        <!-- STAGE CONTENT 1: Active App Mockup / Browser Mockup -->
+        <div id="stage-bg-browser" class="absolute inset-x-6 top-10 bottom-6 bg-slate-800/60 rounded-lg border border-white/10 overflow-hidden flex flex-col transition-all duration-500">
+          <!-- Browser Tab Bar -->
+          <div class="h-8 bg-slate-900/90 border-b border-white/10 flex items-center px-2 gap-1.5">
+            <div class="flex gap-1.5 mr-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
+              <div class="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
+              <div class="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
+            </div>
+            <div id="tab-pill-1" class="px-3 py-1 rounded-t bg-slate-800 text-[11px] text-white flex items-center gap-1.5 border-t-2 border-blue-500 transition-all">
+              <span>🌐 GitHub — EdgeBar</span>
+            </div>
+            <div id="tab-pill-2" class="px-3 py-1 rounded-t bg-transparent text-[11px] text-white/50 flex items-center gap-1.5 transition-all">
+              <span>▶ YouTube — Synthwave 24/7</span>
+            </div>
+            <div id="tab-pill-3" class="px-3 py-1 rounded-t bg-transparent text-[11px] text-white/50 flex items-center gap-1.5 transition-all">
+              <span>📄 Documentation</span>
+            </div>
+          </div>
+          <!-- Web page content -->
+          <div class="flex-1 p-4 flex flex-col justify-center items-center text-center text-white/80">
+            <div id="page-content-title" class="text-sm font-semibold text-white">GitHub: EdgeBar Repository</div>
+            <div id="page-content-desc" class="text-xs text-white/50 mt-1 max-w-sm">Native macOS trackpad edge-control utility built with MultitouchSupport.framework.</div>
+          </div>
+        </div>
+
+        <!-- HUD OVERLAY: Minimalist Volume Pill -->
+        <div id="hud-volume" class="glass-hud absolute right-6 top-14 py-2 px-3 rounded-full flex items-center gap-2.5 text-white z-30 transition-all duration-300 opacity-0 transform translate-x-4">
+          <svg class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+          </svg>
+          <div class="w-24 h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <div id="hud-volume-bar" class="h-full bg-blue-500 rounded-full transition-all duration-100" style="width: 75%;"></div>
+          </div>
+          <span id="hud-volume-val" class="text-xs font-mono font-semibold">75%</span>
+        </div>
+
+        <!-- HUD OVERLAY: Minimalist Brightness Pill -->
+        <div id="hud-brightness" class="glass-hud absolute left-6 top-14 py-2 px-3 rounded-full flex items-center gap-2.5 text-white z-30 transition-all duration-300 opacity-0 transform -translate-x-4">
+          <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1z"/>
+          </svg>
+          <div class="w-24 h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <div id="hud-brightness-bar" class="h-full bg-amber-400 rounded-full transition-all duration-100" style="width: 60%;"></div>
+          </div>
+          <span id="hud-brightness-val" class="text-xs font-mono font-semibold">60%</span>
+        </div>
+
+        <!-- HUD OVERLAY: Hold Countdown Timer (1... 2... 3...) -->
+        <div id="hud-countdown" class="glass-hud absolute py-3 px-5 rounded-2xl flex items-center gap-3 text-white z-30 transition-all duration-200 opacity-0 transform scale-90">
+          <div class="relative w-8 h-8 flex items-center justify-center">
+            <div class="absolute inset-0 rounded-full border-2 border-blue-500/30"></div>
+            <div id="countdown-spinner" class="absolute inset-0 rounded-full border-2 border-blue-400 border-t-transparent animate-spin"></div>
+            <span id="countdown-number" class="text-xs font-bold font-mono">1</span>
+          </div>
+          <div>
+            <div id="countdown-title" class="text-xs font-semibold">Hold for Screenshot</div>
+            <div id="countdown-sub" class="text-[10px] text-white/60">Bottom-Left Corner • 1.5s</div>
+          </div>
+        </div>
+
+        <!-- HUD OVERLAY: Dynamic Island Stop Recording Floating Bar -->
+        <div id="hud-recording-bar" class="glass-hud absolute top-9 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full flex items-center gap-3 text-white z-30 transition-all duration-300 opacity-0 -translate-y-4">
+          <div class="flex items-center gap-1.5">
+            <div class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
+            <span id="rec-timer" class="font-mono text-xs font-bold text-red-400">00:04</span>
+          </div>
+          <div class="w-[1px] h-3.5 bg-white/20"></div>
+          <button class="px-2 py-0.5 rounded-md bg-red-600/80 hover:bg-red-500 text-[11px] font-semibold text-white">
+            Stop Recording
+          </button>
+        </div>
+
+        <!-- Crop Crosshair Selection Box Simulation -->
+        <div id="crop-selection-box" class="absolute border-2 border-white rounded z-20 pointer-events-none transition-all duration-300 opacity-0" style="width: 180px; height: 110px; left: 160px; top: 90px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);">
+          <div class="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono text-white whitespace-nowrap">
+            640 × 380 • Area Crop
+          </div>
+        </div>
+
+        <!-- HUD OVERLAY: Saved Destination Notification Pop-up -->
+        <div id="hud-saved-popup" class="glass-hud absolute bottom-4 px-4 py-2 rounded-xl flex items-center gap-2.5 text-white z-30 transition-all duration-300 opacity-0 translate-y-4">
+          <div class="w-6 h-6 rounded-lg bg-green-500/20 text-green-400 flex items-center justify-center text-xs">✓</div>
+          <div>
+            <div id="saved-title" class="text-xs font-semibold">Screenshot Saved</div>
+            <div id="saved-path" class="text-[10px] text-white/60">Saved to Documents (~/Documents)</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- VIRTUAL APPLE MAGIC TRACKPAD SIMULATOR -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+          <span class="font-semibold text-[var(--foreground)]">Virtual Trackpad Gesture Visualization</span>
+          <span>Single-finger edge slide vs. center trackpad gestures</span>
+        </div>
+
+        <div class="relative bg-gradient-to-b from-[var(--background)] to-[var(--card)] border border-[var(--border)] rounded-2xl p-3 trackpad-shadow h-44 flex items-center justify-center overflow-hidden">
+          
+          <!-- Outer Trackpad Surface -->
+          <div id="trackpad-surface" class="relative w-full h-full bg-slate-900/10 dark:bg-slate-800/40 border border-slate-700/30 rounded-xl overflow-hidden flex items-center justify-center">
+            
+            <!-- Left Edge Active Zone (10% Brightness) -->
+            <div id="zone-left" class="absolute left-0 top-0 bottom-0 w-[12%] bg-amber-500/10 border-r border-amber-500/30 flex flex-col items-center justify-center transition-all duration-300">
+              <span class="text-[9px] font-mono font-bold text-amber-500 rotate-[-90deg] uppercase tracking-wider whitespace-nowrap">Brightness (10%)</span>
+            </div>
+
+            <!-- Right Edge Active Zone (10% Volume) -->
+            <div id="zone-right" class="absolute right-0 top-0 bottom-0 w-[12%] bg-blue-500/10 border-l border-blue-500/30 flex flex-col items-center justify-center transition-all duration-300">
+              <span class="text-[9px] font-mono font-bold text-blue-500 rotate-90 uppercase tracking-wider whitespace-nowrap">Volume (10%)</span>
+            </div>
+
+            <!-- Bottom Edge Active Zone (16% Scrub / Tab Switch) -->
+            <div id="zone-bottom" class="absolute left-[12%] right-[12%] bottom-0 h-[22%] bg-indigo-500/10 border-t border-indigo-500/30 flex items-center justify-center transition-all duration-300">
+              <span class="text-[9px] font-mono font-bold text-indigo-400 uppercase tracking-wider">Bottom Scrub Zone • Tab Switch / Video Seek</span>
+            </div>
+
+            <!-- Corner Macros Indicators -->
+            <div id="corner-bl" class="absolute left-1.5 bottom-1.5 w-6 h-6 rounded-md border border-dashed border-red-500/40 bg-red-500/10 flex items-center justify-center text-[9px] text-red-400 font-mono">
+              📷
+            </div>
+            <div id="corner-br" class="absolute right-1.5 bottom-1.5 w-6 h-6 rounded-md border border-dashed border-purple-500/40 bg-purple-500/10 flex items-center justify-center text-[9px] text-purple-400 font-mono">
+              🔴
+            </div>
+            <div id="corner-tr" class="absolute right-1.5 top-1.5 w-6 h-6 rounded-md border border-dashed border-blue-500/40 bg-blue-500/10 flex items-center justify-center text-[9px] text-blue-400 font-mono">
+              🔇
+            </div>
+
+            <!-- Safe Center Trackpad Zone -->
+            <div class="text-center text-xs text-[var(--muted-foreground)]/60 pointer-events-none">
+              <div class="font-medium text-[var(--muted-foreground)]">Safe Pointer Area (78% Center Area)</div>
+              <div class="text-[10px] mt-0.5">Clicks, pointer movement, 2/3/4 finger gestures never blocked</div>
+            </div>
+
+            <!-- Simulated Finger Contact Dot -->
+            <div id="sim-finger" class="absolute w-7 h-7 rounded-full bg-white/90 border border-black/20 shadow-lg pointer-events-none transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 z-40 flex items-center justify-center text-[10px] text-black font-bold opacity-0">
+              <div class="absolute inset-0 rounded-full bg-blue-500/40 pulse-effect"></div>
+              <span>👆</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature Explanation Box -->
+      <div class="p-4 rounded-xl bg-[var(--background)] border border-[var(--border)] flex items-start gap-3">
+        <div id="feature-icon" class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold shrink-0 mt-0.5">
+          1
+        </div>
+        <div class="space-y-1">
+          <div id="feature-title" class="text-sm font-bold text-[var(--foreground)]">Right Edge Slider: Smooth Volume Control</div>
+          <p id="feature-desc" class="text-xs text-[var(--muted-foreground)] leading-relaxed">
+            Slide your finger vertically along the rightmost 10% edge of your MacBook or Magic Trackpad. System volume adjusts with 64 ultra-smooth haptic micro-ticks. Double-tap the top-right corner to toggle Mute instantly.
+          </p>
+          <div id="feature-tip" class="text-[11px] text-blue-500 font-medium pt-1">
+            💡 Tip: Hold ⇧⌥ (Shift+Option) while sliding for precision quarter-stepping.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Chapter Configuration Data
+    const chapters = [
+      {
+        title: "Right Edge Slider: Smooth Volume Control",
+        desc: "Slide vertically along the rightmost 10% edge of the trackpad to adjust system volume smoothly. Double-tap top-right corner to mute.",
+        tip: "💡 Audio feedback tick is silenced by default; haptic clicks give tactile feedback.",
+        app: "Finder",
+        fingerX: "94%",
+        fingerY: "65%",
+        setup: () => {
+          showElement('hud-volume', true);
+          showElement('hud-brightness', false);
+          showElement('hud-countdown', false);
+          showElement('hud-recording-bar', false);
+          showElement('crop-selection-box', false);
+          showElement('hud-saved-popup', false);
+          highlightZone('zone-right');
+          animateVolumeSlide();
+        }
+      },
+      {
+        title: "Left Edge Slider: Display Brightness Control",
+        desc: "Slide vertically along the leftmost 10% edge to adjust MacBook display brightness without touching function keys.",
+        tip: "💡 The center 80% of your trackpad remains 100% responsive for regular pointer navigation.",
+        app: "System",
+        fingerX: "6%",
+        fingerY: "40%",
+        setup: () => {
+          showElement('hud-volume', false);
+          showElement('hud-brightness', true);
+          showElement('hud-countdown', false);
+          showElement('hud-recording-bar', false);
+          showElement('crop-selection-box', false);
+          showElement('hud-saved-popup', false);
+          highlightZone('zone-left');
+          animateBrightnessSlide();
+        }
+      },
+      {
+        title: "Bottom Edge: Contextual Browser Tab Switching",
+        desc: "EdgeBar detects when Safari, Chrome, or Brave is active: sliding along the bottom edge cycles smoothly between open browser tabs.",
+        tip: "💡 In video apps (YouTube, Netflix, IINA), the bottom edge automatically becomes video rewind/forward scrub!",
+        app: "Chrome",
+        fingerX: "50%",
+        fingerY: "88%",
+        setup: () => {
+          showElement('hud-volume', false);
+          showElement('hud-brightness', false);
+          showElement('hud-countdown', false);
+          showElement('hud-recording-bar', false);
+          showElement('crop-selection-box', false);
+          showElement('hud-saved-popup', false);
+          highlightZone('zone-bottom');
+          animateTabSwitching();
+        }
+      },
+      {
+        title: "Bottom-Left Corner: Crop Screenshot Macro",
+        desc: "Rest your finger in the bottom-left corner for 1.5s. A 1-2 countdown HUD appears, followed by interactive crop crosshairs to capture any window or region.",
+        tip: "💡 Automatically saves to ~/Documents (or your custom folder in Settings) with a saved pop-up notification.",
+        app: "Screenshot",
+        fingerX: "4%",
+        fingerY: "90%",
+        setup: () => {
+          showElement('hud-volume', false);
+          showElement('hud-brightness', false);
+          showElement('hud-recording-bar', false);
+          highlightZone('corner-bl');
+          animateCropScreenshot();
+        }
+      },
+      {
+        title: "Bottom-Right Corner: Crop Screen Recording Macro",
+        desc: "Rest your finger in the bottom-right corner for 3s (with 1-2-3 countdown HUD). Drag an area to record, and the dynamic island 'Stop Recording' HUD appears.",
+        tip: "💡 Click Stop Recording or hold bottom-right again to finalize QuickTime movie and reveal in Finder.",
+        app: "Screen Recording",
+        fingerX: "96%",
+        fingerY: "90%",
+        setup: () => {
+          showElement('hud-volume', false);
+          showElement('hud-brightness', false);
+          highlightZone('corner-br');
+          animateCropRecording();
+        }
+      }
+    ];
+
+    let currentChapter = 0;
+    let isPlayingTour = false;
+    let tourTimer = null;
+
+    function selectChapter(idx) {
+      currentChapter = idx;
+      
+      // Update tab styles
+      for (let i = 0; i < 5; i++) {
+        const tab = document.getElementById(`tab-${i}`);
+        if (i === idx) {
+          tab.classList.add('border-blue-500', 'text-blue-500', 'font-semibold');
+          tab.classList.remove('border-transparent', 'text-[var(--muted-foreground)]');
+        } else {
+          tab.classList.remove('border-blue-500', 'text-blue-500', 'font-semibold');
+          tab.classList.add('border-transparent', 'text-[var(--muted-foreground)]');
+        }
+      }
+
+      // Update text
+      const ch = chapters[idx];
+      document.getElementById('feature-title').innerText = ch.title;
+      document.getElementById('feature-desc').innerText = ch.desc;
+      document.getElementById('feature-tip').innerText = ch.tip;
+      document.getElementById('feature-icon').innerText = idx + 1;
+      document.getElementById('active-app-name').innerText = ch.app;
+
+      // Position finger
+      const finger = document.getElementById('sim-finger');
+      finger.style.opacity = '1';
+      finger.style.left = ch.fingerX;
+      finger.style.top = ch.fingerY;
+
+      // Run chapter animation
+      ch.setup();
+    }
+
+    function highlightZone(activeZoneId) {
+      ['zone-left', 'zone-right', 'zone-bottom', 'corner-bl', 'corner-br', 'corner-tr'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          if (id === activeZoneId) {
+            el.style.backgroundColor = 'rgba(59, 130, 246, 0.25)';
+            el.style.borderColor = 'rgba(59, 130, 246, 0.8)';
+          } else {
+            el.style.backgroundColor = '';
+            el.style.borderColor = '';
+          }
+        }
+      });
+    }
+
+    function showElement(id, show) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (show) {
+        el.classList.remove('opacity-0', 'pointer-events-none');
+        el.classList.add('opacity-100');
+      } else {
+        el.classList.add('opacity-0', 'pointer-events-none');
+        el.classList.remove('opacity-100');
+      }
+    }
+
+    // Chapter Animation Sequences
+    function animateVolumeSlide() {
+      const finger = document.getElementById('sim-finger');
+      const bar = document.getElementById('hud-volume-bar');
+      const val = document.getElementById('hud-volume-val');
+      
+      let step = 0;
+      const interval = setInterval(() => {
+        step++;
+        const pct = 50 + Math.sin(step * 0.25) * 40;
+        bar.style.width = `${pct}%`;
+        val.innerText = `${Math.round(pct)}%`;
+        finger.style.top = `${80 - (pct / 100) * 60}%`;
+        if (step > 25 || currentChapter !== 0) clearInterval(interval);
+      }, 100);
+    }
+
+    function animateBrightnessSlide() {
+      const finger = document.getElementById('sim-finger');
+      const bar = document.getElementById('hud-brightness-bar');
+      const val = document.getElementById('hud-brightness-val');
+      
+      let step = 0;
+      const interval = setInterval(() => {
+        step++;
+        const pct = 40 + Math.sin(step * 0.25) * 35;
+        bar.style.width = `${pct}%`;
+        val.innerText = `${Math.round(pct)}%`;
+        finger.style.top = `${80 - (pct / 100) * 60}%`;
+        if (step > 25 || currentChapter !== 1) clearInterval(interval);
+      }, 100);
+    }
+
+    function animateTabSwitching() {
+      const finger = document.getElementById('sim-finger');
+      const tabs = [
+        { id: 'tab-pill-1', title: 'GitHub: EdgeBar Repository', desc: 'Native macOS trackpad edge-control utility built with MultitouchSupport.framework.' },
+        { id: 'tab-pill-2', title: 'YouTube: Lo-Fi Coding Beats 24/7', desc: 'Streaming live music. Bottom edge now switches to video scrub seek bar!' },
+        { id: 'tab-pill-3', title: 'Documentation: Settings & Profiles', desc: 'Customize hold duration, sensitivity, and app-specific gestures in Settings.' }
+      ];
+
+      let activeIdx = 0;
+      const interval = setInterval(() => {
+        activeIdx = (activeIdx + 1) % tabs.length;
+        finger.style.left = `${30 + activeIdx * 20}%`;
+        
+        tabs.forEach((t, i) => {
+          const el = document.getElementById(t.id);
+          if (i === activeIdx) {
+            el.className = 'px-3 py-1 rounded-t bg-slate-800 text-[11px] text-white flex items-center gap-1.5 border-t-2 border-blue-500 transition-all';
+            document.getElementById('page-content-title').innerText = t.title;
+            document.getElementById('page-content-desc').innerText = t.desc;
+          } else {
+            el.className = 'px-3 py-1 rounded-t bg-transparent text-[11px] text-white/50 flex items-center gap-1.5 transition-all';
+          }
+        });
+
+        if (currentChapter !== 2) clearInterval(interval);
+      }, 1100);
+    }
+
+    function animateCropScreenshot() {
+      showElement('hud-countdown', true);
+      document.getElementById('countdown-title').innerText = "Hold for Screenshot";
+      document.getElementById('countdown-sub').innerText = "Bottom-Left Corner • 1.5s";
+      document.getElementById('countdown-number').innerText = "1";
+
+      setTimeout(() => {
+        if (currentChapter !== 3) return;
+        document.getElementById('countdown-number').innerText = "2";
+      }, 700);
+
+      setTimeout(() => {
+        if (currentChapter !== 3) return;
+        showElement('hud-countdown', false);
+        // Show crop box
+        showElement('crop-selection-box', true);
+      }, 1400);
+
+      setTimeout(() => {
+        if (currentChapter !== 3) return;
+        showElement('crop-selection-box', false);
+        // Show saved pop-up
+        document.getElementById('saved-title').innerText = "Screenshot Saved";
+        document.getElementById('saved-path').innerText = "Saved to Documents (~/Documents)";
+        showElement('hud-saved-popup', true);
+      }, 2500);
+
+      setTimeout(() => {
+        if (currentChapter !== 3) return;
+        showElement('hud-saved-popup', false);
+      }, 4500);
+    }
+
+    function animateCropRecording() {
+      showElement('hud-countdown', true);
+      document.getElementById('countdown-title').innerText = "Hold for Screen Recording";
+      document.getElementById('countdown-sub').innerText = "Bottom-Right Corner • 3.0s";
+      document.getElementById('countdown-number').innerText = "1";
+
+      setTimeout(() => {
+        if (currentChapter !== 4) return;
+        document.getElementById('countdown-number').innerText = "2";
+      }, 800);
+
+      setTimeout(() => {
+        if (currentChapter !== 4) return;
+        document.getElementById('countdown-number').innerText = "3";
+      }, 1600);
+
+      setTimeout(() => {
+        if (currentChapter !== 4) return;
+        showElement('hud-countdown', false);
+        showElement('crop-selection-box', true);
+      }, 2400);
+
+      setTimeout(() => {
+        if (currentChapter !== 4) return;
+        showElement('crop-selection-box', false);
+        showElement('hud-recording-bar', true);
+      }, 3300);
+
+      setTimeout(() => {
+        if (currentChapter !== 4) return;
+        showElement('hud-recording-bar', false);
+        document.getElementById('saved-title').innerText = "Recording Saved (QuickTime Movie)";
+        document.getElementById('saved-path').innerText = "Saved to Documents (~/Documents)";
+        showElement('hud-saved-popup', true);
+      }, 5500);
+
+      setTimeout(() => {
+        if (currentChapter !== 4) return;
+        showElement('hud-saved-popup', false);
+      }, 7500);
+    }
+
+    function toggleTourPlayback() {
+      isPlayingTour = !isPlayingTour;
+      const text = document.getElementById('text-play');
+      const icon = document.getElementById('icon-play');
+      
+      if (isPlayingTour) {
+        text.innerText = "Pause Tour";
+        icon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+        runTourLoop();
+      } else {
+        text.innerText = "Play Tour";
+        icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+        clearTimeout(tourTimer);
+      }
+    }
+
+    function runTourLoop() {
+      if (!isPlayingTour) return;
+      tourTimer = setTimeout(() => {
+        nextStep();
+        runTourLoop();
+      }, 6000);
+    }
+
+    function nextStep() {
+      const next = (currentChapter + 1) % 5;
+      selectChapter(next);
+    }
+
+    // Initialize first chapter on load
+    selectChapter(0);
+  </script>
+</body>
+</html>

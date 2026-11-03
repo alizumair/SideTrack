@@ -4,6 +4,8 @@
 
 Slide along the edges of your trackpad to smoothly adjust display brightness and volume with tactile haptic ticks, navigate browser tabs, scrub video timelines, capture interactive cropped screenshots, and record cropped screen regions with a floating Dynamic Island recording HUD — all without moving your mouse cursor or interfering with macOS native multi-finger scrolling and navigation gestures.
 
+> 🎬 **Interactive Walkthrough & Simulator:** Try the gesture simulator live at [docs/walkthrough.html](docs/walkthrough.html) or in the app via **Menu Bar ➜ Feature Walkthrough & Guide...**
+
 ---
 
 ## ✨ Features

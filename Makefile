@@ -21,6 +21,7 @@ app: build
 	@chmod +x $(MACOS_DIR)/$(APP_NAME)
 	@cp -f Resources/Info.plist $(CONTENTS_DIR)/Info.plist
 	@cp -f Resources/*.icns $(RESOURCES_DIR)/ 2>/dev/null || true
+	@cp -f Resources/walkthrough.html $(RESOURCES_DIR)/walkthrough.html 2>/dev/null || true
 	@xattr -cr $(APP_BUNDLE) 2>/dev/null || true
 	@echo "==> Code-signing application bundle..."
 	@codesign --force --deep --sign - --identifier "io.github.edgebar" -r='designated => identifier "io.github.edgebar"' $(APP_BUNDLE)

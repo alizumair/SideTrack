@@ -75,6 +75,22 @@ public struct GeneralSettingsTab: View {
                 
                 Divider()
                 
+                // Feature Walkthrough
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Interactive Walkthrough & Guide")
+                        .font(.subheadline.bold())
+                    
+                    Text("View the interactive Apple Trackpad gesture simulator and guided feature tour.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Button("Open Interactive Walkthrough...") {
+                        StatusBarController.openWalkthroughInBrowser()
+                    }
+                }
+                
+                Divider()
+                
                 // About
                 HStack(spacing: 16) {
                     if let icon = NSApp.applicationIconImage {

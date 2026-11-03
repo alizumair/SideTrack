@@ -230,6 +230,62 @@ final class AdvancedFeaturesTests: XCTestCase {
         XCTAssertTrue(recordingURL.path.contains("/Screen Recording"))
         XCTAssertTrue(recordingURL.path.hasSuffix(".mov"))
     }
+    
+    func testHoldToEngageSliderRejectsPrematureSwipe() {
+        var settings = SettingsModel.default
+        settings.sliderActivationStyle = .holdToEngage
+        settings.sliderHoldDwellDuration = 0.20
+        
+        let engine = SlideEngine(settings: settings)
+        let delegate = MockScrubDelegate()
+        engine.delegate = delegate
+        
+        var t = 1.0
+        // Touch lands on right edge (volume)
+        let c1 = TrackpadContact(id: 1, x: 0.95, y: 0.50, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c1], timestamp: t)
+        
+        // Rapid swipe (moving > 0.020 within 0.05s, way before 0.20s dwell)
+        t += 0.05
+        let c2 = TrackpadContact(id: 1, x: 0.95, y: 0.53, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c2], timestamp: t)
+        
+        // Should be rejected to idle because it moved before dwell threshold!
+        XCTAssertEqual(engine.phase, .idle)
+    }
+    
+    func testHoldToEngageSliderActivatesAfterDwell() {
+        var settings = SettingsModel.default
+        settings.sliderActivationStyle = .holdToEngage
+        settings.sliderHoldDwellDuration = 0.20
+        
+        let engine = SlideEngine(settings: settings)
+        let delegate = MockScrubDelegate()
+        engine.delegate = delegate
+        
+        var t = 1.0
+        // Touch lands on right edge
+        let c1 = TrackpadContact(id: 1, x: 0.95, y: 0.50, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c1], timestamp: t)
+        
+        // Resting stationary for 0.22s (> 0.20s dwell duration)
+        t += 0.22
+        let c2 = TrackpadContact(id: 1, x: 0.95, y: 0.505, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c2], timestamp: t)
+        
+        // Now sliding vertically by dy = 0.020
+        t += 0.05
+        let c3 = TrackpadContact(id: 1, x: 0.95, y: 0.525, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c3], timestamp: t)
+        
+        // Should successfully engage into sliding!
+        switch engine.phase {
+        case .sliding:
+            break
+        default:
+            XCTFail("Expected .sliding phase after dwell threshold, got \(engine.phase)")
+        }
+    }
 }
 
 private final class MockScrubDelegate: SlideEngineDelegate {

@@ -93,6 +93,11 @@ public final class SettingsStore: ObservableObject {
                     decoded.recordingMode = .cropScreenWithStopButton
                     decoded.version = 10
                 }
+                if decoded.version < 11 {
+                    decoded.sliderActivationStyle = .instant
+                    decoded.sliderHoldDwellDuration = 0.20
+                    decoded.version = 11
+                }
                 self.settings = decoded
                 save()
             } catch {

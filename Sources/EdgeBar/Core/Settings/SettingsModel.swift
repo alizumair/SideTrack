@@ -63,6 +63,13 @@ public enum HUDStyle: String, Codable, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
 }
 
+public enum SliderActivationStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    case instant = "Instant (Fast Response)"
+    case holdToEngage = "Hold to Engage (Micro-Dwell)"
+    
+    public var id: String { rawValue }
+}
+
 public enum ScriptTriggerType: String, Codable, CaseIterable, Identifiable, Sendable {
     case shortcut = "macOS Shortcut"
     case appleScript = "AppleScript"
@@ -130,7 +137,7 @@ public struct AppProfile: Codable, Identifiable, Equatable, Sendable {
 }
 
 public struct SettingsModel: Codable, Equatable, Sendable {
-    public static let currentVersion = 10
+    public static let currentVersion = 11
     public static let storageKey = "io.github.edgebar.settings.v1"
     
     public var version: Int = SettingsModel.currentVersion
@@ -169,6 +176,8 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     // Feel, Haptics & Audio
     public var sensitivity: Double = 1.0
     public var tabSwitchSensitivity: Double = 0.5      // Calmer tab switching (0.2...2.0)
+    public var sliderActivationStyle: SliderActivationStyle = .instant
+    public var sliderHoldDwellDuration: Double = 0.20  // Micro-dwell hold time (0.10s ... 0.80s)
     public var invertVerticalAxis: Bool = false
     public var cursorFreezingEnabled: Bool = true
     public var hapticsEnabled: Bool = true
@@ -238,7 +247,7 @@ public struct SettingsModel: Codable, Equatable, Sendable {
         case leftEdgeWidthFraction, rightEdgeWidthFraction, bottomEdgeHeightFraction, topEdgeHeightFraction, cornerZoneFraction
         case edgeWidthFraction, edgeHeightFraction
         case leftEdgeAction, rightEdgeAction, bottomEdgeAction, topRightCornerAction, bottomDoubleTapAction
-        case sensitivity, tabSwitchSensitivity, invertVerticalAxis, cursorFreezingEnabled, hapticsEnabled, audioFeedbackEnabled, hapticSteps, precisionMultiplier
+        case sensitivity, tabSwitchSensitivity, sliderActivationStyle, sliderHoldDwellDuration, invertVerticalAxis, cursorFreezingEnabled, hapticsEnabled, audioFeedbackEnabled, hapticSteps, precisionMultiplier
         case hudStyle, showMenuBarIcon, showHUDOverlay, useSystemOSD, doubleTapMaxInterval, maxTapMovementThreshold
         case cornerHoldsEnabled, cornerHoldFraction, showHoldCountdownTimer
         case bottomLeftHoldAction, bottomRightHoldAction, topLeftHoldAction, screenshotMode, recordingMode
@@ -268,6 +277,8 @@ public struct SettingsModel: Codable, Equatable, Sendable {
         
         self.sensitivity = try container.decodeIfPresent(Double.self, forKey: .sensitivity) ?? 1.0
         self.tabSwitchSensitivity = try container.decodeIfPresent(Double.self, forKey: .tabSwitchSensitivity) ?? 0.5
+        self.sliderActivationStyle = try container.decodeIfPresent(SliderActivationStyle.self, forKey: .sliderActivationStyle) ?? .instant
+        self.sliderHoldDwellDuration = try container.decodeIfPresent(Double.self, forKey: .sliderHoldDwellDuration) ?? 0.20
         self.invertVerticalAxis = try container.decodeIfPresent(Bool.self, forKey: .invertVerticalAxis) ?? false
         self.cursorFreezingEnabled = try container.decodeIfPresent(Bool.self, forKey: .cursorFreezingEnabled) ?? true
         self.hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
@@ -316,6 +327,8 @@ public struct SettingsModel: Codable, Equatable, Sendable {
         try container.encode(bottomDoubleTapAction, forKey: .bottomDoubleTapAction)
         try container.encode(sensitivity, forKey: .sensitivity)
         try container.encode(tabSwitchSensitivity, forKey: .tabSwitchSensitivity)
+        try container.encode(sliderActivationStyle, forKey: .sliderActivationStyle)
+        try container.encode(sliderHoldDwellDuration, forKey: .sliderHoldDwellDuration)
         try container.encode(invertVerticalAxis, forKey: .invertVerticalAxis)
         try container.encode(cursorFreezingEnabled, forKey: .cursorFreezingEnabled)
         try container.encode(hapticsEnabled, forKey: .hapticsEnabled)
