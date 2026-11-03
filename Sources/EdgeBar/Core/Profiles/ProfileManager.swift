@@ -8,6 +8,7 @@ public final class ProfileManager: ObservableObject {
     @Published public private(set) var isGameModeActive: Bool = false
     @Published public private(set) var frontmostAppName: String = ""
     @Published public private(set) var frontmostBundleID: String = ""
+    @Published public private(set) var frontmostWindowTitle: String = ""
     
     public var onProfileChanged: ((AppProfile?, Bool) -> Void)?
     
@@ -54,6 +55,7 @@ public final class ProfileManager: ObservableObject {
         
         self.frontmostBundleID = bundleID
         self.frontmostAppName = appName
+        self.frontmostWindowTitle = windowTitle
         
         let currentLower = bundleID.lowercased()
         let nameLower = appName.lowercased()
@@ -83,8 +85,19 @@ public final class ProfileManager: ObservableObject {
         
         var matched: AppProfile? = nil
         
-        // 1. Web Browsers Profile (Always switch tabs when focused in Chrome, Safari, Arc, Brave, Firefox, Edge, etc.)
-        if isBrowser {
+        // 1. Dedicated Streaming & Video (YouTube, Netflix, Prime Video, QuickTime, VLC, IINA, etc.)
+        if isStreaming {
+            matched = settings.profiles.first(where: { $0.isEnabled && ($0.bottomScrubMode == .videoSeek || $0.name.lowercased().contains("streaming") || $0.name.lowercased().contains("video")) })
+            if matched == nil {
+                matched = AppProfile(
+                    name: "Streaming & Video",
+                    bundleIdentifier: bundleID,
+                    bottomEdgeAction: .videoSeek,
+                    bottomScrubMode: .videoSeek
+                )
+            }
+        } else if isBrowser {
+            // 2. Web Browsers Profile (switch tabs when browsing regular web pages)
             matched = settings.profiles.first(where: { $0.isEnabled && ($0.bottomScrubMode == .tabSwitch || $0.name.lowercased().contains("browser")) })
             if matched == nil {
                 matched = AppProfile(
@@ -95,33 +108,20 @@ public final class ProfileManager: ObservableObject {
                 )
             }
         } else {
-            // 2. Dedicated Streaming & Video Players (QuickTime, VLC, IINA, Infuse, Plex, Stremio, Apple TV, etc.)
-            if isStreaming {
-                matched = settings.profiles.first(where: { $0.isEnabled && ($0.bottomScrubMode == .videoSeek || $0.name.lowercased().contains("streaming")) })
-                if matched == nil {
-                    matched = AppProfile(
-                        name: "Streaming & Video",
-                        bundleIdentifier: bundleID,
-                        bottomEdgeAction: .videoSeek,
-                        bottomScrubMode: .videoSeek
-                    )
+            // 3. Match custom user-defined profiles by bundle identifier or title
+            for profile in settings.profiles where profile.isEnabled {
+                let identifiers = profile.bundleIdentifier
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                
+                let matches = identifiers.contains { id in
+                    guard !id.isEmpty else { return false }
+                    return currentLower.contains(id) || nameLower.contains(id) || titleLower.contains(id)
                 }
-            } else {
-                // 3. Match custom user-defined profiles by bundle identifier or title
-                for profile in settings.profiles where profile.isEnabled {
-                    let identifiers = profile.bundleIdentifier
-                        .split(separator: ",")
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                    
-                    let matches = identifiers.contains { id in
-                        guard !id.isEmpty else { return false }
-                        return currentLower.contains(id) || nameLower.contains(id) || titleLower.contains(id)
-                    }
-                    
-                    if matches {
-                        matched = profile
-                        break
-                    }
+                
+                if matches {
+                    matched = profile
+                    break
                 }
             }
         }

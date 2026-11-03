@@ -32,6 +32,17 @@ public final class MediaKeyDispatcher {
     }
     
     public func playPause() {
+        let app = NSWorkspace.shared.frontmostApplication
+        let appName = app?.localizedName?.lowercased() ?? ""
+        let bundleID = app?.bundleIdentifier?.lowercased() ?? ""
+        let windowTitle = ProfileManager.shared.frontmostWindowTitle.lowercased()
+        let isYouTube = windowTitle.contains("youtube") || appName.contains("youtube") || bundleID.contains("youtube")
+        
+        if isYouTube {
+            // In YouTube, K (key code 40) or Space toggles play/pause reliably
+            runOsaScriptAsync("tell application \"System Events\" to key code 40")
+        }
+        
         if let sendMR = sendMediaRemoteCommand {
             _ = sendMR(2, nil) // kMRTogglePlayPause = 2
         }
@@ -97,29 +108,55 @@ public final class MediaKeyDispatcher {
     }
     
     public func seekVideo(forward: Bool) {
-        let key: CGKeyCode = forward ? 124 : 123
-        let source = CGEventSource(stateID: .hidSystemState)
-        let targetPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let app = NSWorkspace.shared.frontmostApplication
+        let appName = app?.localizedName?.lowercased() ?? ""
+        let bundleID = app?.bundleIdentifier?.lowercased() ?? ""
+        let windowTitle = ProfileManager.shared.frontmostWindowTitle.lowercased()
+        let targetPID = app?.processIdentifier
         
-        EdgeBarLogger.log("seekVideo: forward=\(forward), targetPID=\(targetPID ?? 0)")
-        NSLog("[EdgeBar] seekVideo called: forward=%d, targetPID=%d", forward ? 1 : 0, targetPID ?? 0)
+        let isYouTube = windowTitle.contains("youtube") || appName.contains("youtube") || bundleID.contains("youtube")
         
-        // 1. Send via System Events through osascript (bypasses accessibility permission barriers)
-        let keyCodeNum = forward ? 124 : 123
-        runOsaScriptAsync("tell application \"System Events\" to key code \(keyCodeNum)")
+        EdgeBarLogger.log("seekVideo: forward=\(forward), isYouTube=\(isYouTube), targetPID=\(targetPID ?? 0)")
+        NSLog("[EdgeBar] seekVideo called: forward=%d, isYouTube=%d, targetPID=%d", forward ? 1 : 0, isYouTube ? 1 : 0, targetPID ?? 0)
         
-        // 2. Also dispatch via CGEvent to target PID and HID taps
-        if let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true) {
-            if let pid = targetPID { down.postToPid(pid) }
-            down.post(tap: .cgSessionEventTap)
-            down.post(tap: .cghidEventTap)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
-            let upSource = CGEventSource(stateID: .hidSystemState)
-            if let up = CGEvent(keyboardEventSource: upSource, virtualKey: key, keyDown: false) {
-                if let pid = targetPID { up.postToPid(pid) }
-                up.post(tap: .cgSessionEventTap)
-                up.post(tap: .cghidEventTap)
+        if isYouTube {
+            // In YouTube, J (key code 38) rewinds 10s and L (key code 37) fast-forwards 10s unconditionally
+            let ytKey: CGKeyCode = forward ? 37 : 38
+            let ytKeyCodeNum = forward ? 37 : 38
+            
+            runOsaScriptAsync("tell application \"System Events\" to key code \(ytKeyCodeNum)")
+            
+            let source = CGEventSource(stateID: .hidSystemState)
+            if let down = CGEvent(keyboardEventSource: source, virtualKey: ytKey, keyDown: true) {
+                if let pid = targetPID { down.postToPid(pid) }
+                down.post(tap: .cgSessionEventTap)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
+                let upSource = CGEventSource(stateID: .hidSystemState)
+                if let up = CGEvent(keyboardEventSource: upSource, virtualKey: ytKey, keyDown: false) {
+                    if let pid = targetPID { up.postToPid(pid) }
+                    up.post(tap: .cgSessionEventTap)
+                }
+            }
+        } else {
+            // General streaming (QuickTime, Netflix, Prime Video, VLC, IINA, Apple TV, etc.)
+            let keyCodeNum = forward ? 124 : 123
+            runOsaScriptAsync("tell application \"System Events\" to key code \(keyCodeNum)")
+            
+            let key: CGKeyCode = forward ? 124 : 123
+            let source = CGEventSource(stateID: .hidSystemState)
+            if let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true) {
+                if let pid = targetPID { down.postToPid(pid) }
+                down.post(tap: .cgSessionEventTap)
+                down.post(tap: .cghidEventTap)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
+                let upSource = CGEventSource(stateID: .hidSystemState)
+                if let up = CGEvent(keyboardEventSource: upSource, virtualKey: key, keyDown: false) {
+                    if let pid = targetPID { up.postToPid(pid) }
+                    up.post(tap: .cgSessionEventTap)
+                    up.post(tap: .cghidEventTap)
+                }
             }
         }
     }
