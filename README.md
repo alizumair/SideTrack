@@ -8,6 +8,27 @@ Slide along the edges of your trackpad to smoothly adjust display brightness and
 
 ---
 
+## 📦 Download & Installation
+
+### Option 1: Direct Download (Pre-built App)
+1. Download **[EdgeBar.zip](https://github.com/alizumair/SideTrack/releases/latest/download/EdgeBar.zip)** from the latest [GitHub Release](https://github.com/alizumair/SideTrack/releases).
+2. Unzip and move `EdgeBar.app` into your `/Applications` folder.
+3. Launch `EdgeBar.app`.
+   > **Note for macOS Sequoia / Sonoma:** Because this is an open-source build, either **Right-Click (Control-Click) ➜ Open** on first launch, or run:
+   > ```bash
+   > xattr -cr /Applications/EdgeBar.app
+   > ```
+4. When prompted, grant **Accessibility** permission in System Settings so EdgeBar can receive raw multitouch edge events.
+
+### Option 2: Build from Source
+```bash
+git clone https://github.com/alizumair/SideTrack.git
+cd SideTrack
+make install
+```
+
+---
+
 ## ✨ Features
 
 - **Direct Multitouch Contact Interception**: Dynamically links Apple's private `MultitouchSupport.framework` via `dlopen`. Processes contact frames directly at the hardware sensor layer with sub-millisecond responsiveness.
@@ -15,6 +36,10 @@ Slide along the edges of your trackpad to smoothly adjust display brightness and
 - **Middle-Touch Rejection**: Contacts initiating outside designated edge strips (default: outer 10–18%) are strictly ignored for their entire lifespan, avoiding accidental activation while typing or navigating.
 - **Synchronized Force Touch Haptics**: Uses `NSHapticFeedbackManager` to trigger tactile click ticks synchronized with scalar volume and brightness steps (16, 32, or 64 steps). Silent sliding by default, or optional subtle click sounds.
 - **Cursor Freezing**: Automatically dissociates the hardware cursor position (`CGAssociateMouseAndMouseCursorPosition`) while sliding along an edge so your mouse cursor remains parked on screen.
+- **Hold-to-Slide Activation (Accident-Proof Micro-Dwell)**:
+  - Toggle between **Instant (Fast Response)** and **Hold to Engage (Micro-Dwell)** in **Settings ➜ Feel Tab**.
+  - When enabled, resting your finger on an edge strip for a brief moment (configurable: 0.10s to 0.80s, default 0.20s) unlocks the slider, confirmed by a subtle Force Touch haptic latch tick.
+  - Rejects rapid accidental grazes, palm resting while typing, and diagonal gestures across the pad.
 - **Precision Modifiers**: Hold **Shift + Option (⇧⌥)** while sliding for quarter-step fine adjustment.
 - **Context-Aware App Profiles**:
   - **Web Browsers (Chrome, Safari, Brave, Arc, Firefox, Edge)**: Bottom edge swipe cycles smoothly forward and backward through open tabs.
