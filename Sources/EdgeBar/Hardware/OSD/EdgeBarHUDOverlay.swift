@@ -9,6 +9,8 @@ public enum HUDKind {
     case micGain(level: Float)
     case media(message: String, icon: String)
     case timelineScrub(forward: Bool)
+    case tabSwitch(forward: Bool)
+    case videoSeek(forward: Bool)
 }
 
 public final class EdgeBarHUDOverlay {
@@ -93,6 +95,20 @@ public final class EdgeBarHUDOverlay {
                 self.stateObject.progress = 1.0
                 self.stateObject.hasBar = false
                 self.stateObject.detailText = ""
+                
+            case .tabSwitch(let forward):
+                self.stateObject.title = forward ? "Next Tab ▶" : "◀ Previous Tab"
+                self.stateObject.iconName = "macwindow.on.rectangle"
+                self.stateObject.progress = 1.0
+                self.stateObject.hasBar = false
+                self.stateObject.detailText = forward ? "Next" : "Prev"
+                
+            case .videoSeek(let forward):
+                self.stateObject.title = forward ? "Seek +10s ▶" : "◀ Seek -10s"
+                self.stateObject.iconName = forward ? "goforward.10" : "gobackward.10"
+                self.stateObject.progress = 1.0
+                self.stateObject.hasBar = false
+                self.stateObject.detailText = forward ? "+10s" : "-10s"
                 
             case .media(let message, let icon):
                 self.stateObject.title = message

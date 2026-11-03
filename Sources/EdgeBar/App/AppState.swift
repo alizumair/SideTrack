@@ -163,6 +163,26 @@ public final class AppState: ObservableObject, MultitouchFrameDelegate, SlideEng
         }
     }
     
+    public func slideEngineDidSwitchTab(forward: Bool) {
+        MediaKeyDispatcher.shared.switchTab(next: forward)
+        if settingsStore.settings.showHUDOverlay {
+            EdgeBarHUDOverlay.shared.show(.tabSwitch(forward: forward))
+        }
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.tick()
+        }
+    }
+    
+    public func slideEngineDidSeekVideo(forward: Bool) {
+        MediaKeyDispatcher.shared.seekVideo(forward: forward)
+        if settingsStore.settings.showHUDOverlay {
+            EdgeBarHUDOverlay.shared.show(.videoSeek(forward: forward))
+        }
+        if settingsStore.settings.hapticsEnabled {
+            HapticFeedbackBridge.shared.tick()
+        }
+    }
+    
     public func slideEngineDidSkipMediaTrack(forward: Bool) {
         if forward {
             MediaKeyDispatcher.shared.nextTrack()

@@ -113,4 +113,91 @@ final class AdvancedFeaturesTests: XCTestCase {
         haptics.audioFeedbackEnabled = false
         XCTAssertFalse(haptics.audioFeedbackEnabled)
     }
+    
+    func testTabSwitchInSlideEngine() {
+        var settings = SettingsModel.default
+        let browserProfile = AppProfile(
+            name: "Web Browsers",
+            bundleIdentifier: "com.apple.Safari",
+            bottomEdgeAction: .tabSwitch,
+            bottomScrubMode: .tabSwitch
+        )
+        settings.profiles = [browserProfile]
+        
+        let engine = SlideEngine(settings: settings)
+        engine.activeProfile = browserProfile
+        let delegate = MockScrubDelegate()
+        engine.delegate = delegate
+        
+        var t = 1.0
+        let c1 = TrackpadContact(id: 1, x: 0.30, y: 0.05, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c1], timestamp: t)
+        
+        // Slide right by 0.09 (> 0.035 step threshold)
+        t += 0.05
+        let c2 = TrackpadContact(id: 1, x: 0.39, y: 0.05, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c2], timestamp: t)
+        
+        XCTAssertGreaterThanOrEqual(delegate.tabSwitches.count, 1)
+        XCTAssertEqual(delegate.tabSwitches.first, true)
+    }
+    
+    func testVideoSeekInSlideEngine() {
+        var settings = SettingsModel.default
+        let streamProfile = AppProfile(
+            name: "Streaming & Video",
+            bundleIdentifier: "netflix, disney, prime",
+            bottomEdgeAction: .videoSeek,
+            bottomScrubMode: .videoSeek
+        )
+        settings.profiles = [streamProfile]
+        
+        let engine = SlideEngine(settings: settings)
+        engine.activeProfile = streamProfile
+        let delegate = MockScrubDelegate()
+        engine.delegate = delegate
+        
+        var t = 1.0
+        let c1 = TrackpadContact(id: 1, x: 0.50, y: 0.05, state: .starting, timestamp: t)
+        engine.processFrame(contacts: [c1], timestamp: t)
+        
+        // Slide left by 0.09
+        t += 0.05
+        let c2 = TrackpadContact(id: 1, x: 0.41, y: 0.05, state: .touching, timestamp: t)
+        engine.processFrame(contacts: [c2], timestamp: t)
+        
+        XCTAssertGreaterThanOrEqual(delegate.videoSeeks.count, 1)
+        XCTAssertEqual(delegate.videoSeeks.first, false)
+    }
+    
+    func testStreamingAndBrowserProfileDefaults() {
+        let settings = SettingsModel.default
+        let stream = settings.profiles.first { $0.name.contains("Streaming") }
+        XCTAssertNotNil(stream)
+        XCTAssertEqual(stream?.bottomScrubMode, .videoSeek)
+        
+        let browser = settings.profiles.first { $0.name.contains("Browsers") }
+        XCTAssertNotNil(browser)
+        XCTAssertEqual(browser?.bottomScrubMode, .tabSwitch)
+    }
+}
+
+private final class MockScrubDelegate: SlideEngineDelegate {
+    var tabSwitches: [Bool] = []
+    var videoSeeks: [Bool] = []
+    
+    func slideEngineDidAdjustBrightness(delta: Float, isPrecise: Bool) {}
+    func slideEngineDidAdjustVolume(delta: Float, isPrecise: Bool) {}
+    func slideEngineDidSkipMediaTrack(forward: Bool) {}
+    func slideEngineDidPlayPause() {}
+    func slideEngineDidToggleMute() {}
+    func slideEngineSlideStateChanged(isSliding: Bool) {}
+    func slideEngineHapticTick() {}
+    
+    func slideEngineDidSwitchTab(forward: Bool) {
+        tabSwitches.append(forward)
+    }
+    func slideEngineDidSeekVideo(forward: Bool) {
+        videoSeeks.append(forward)
+    }
 }

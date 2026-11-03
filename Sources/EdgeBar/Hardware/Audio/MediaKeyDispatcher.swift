@@ -87,8 +87,35 @@ public final class MediaKeyDispatcher {
     public func stepTimeline(forward: Bool) {
         // Virtual key 124 is Right Arrow, 123 is Left Arrow
         let key: CGKeyCode = forward ? 124 : 123
-        if let down = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: true),
-           let up = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        if let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
+           let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
+            down.post(tap: .cghidEventTap)
+            up.post(tap: .cghidEventTap)
+        }
+    }
+    
+    public func seekVideo(forward: Bool) {
+        // Universal streaming & media seek: Right Arrow (+5s..+10s) / Left Arrow (-5s..-10s)
+        let key: CGKeyCode = forward ? 124 : 123
+        let source = CGEventSource(stateID: .hidSystemState)
+        if let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
+           let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
+            down.post(tap: .cghidEventTap)
+            up.post(tap: .cghidEventTap)
+        }
+    }
+    
+    public func switchTab(next: Bool) {
+        // macOS standard tab switching:
+        // Cmd + Shift + ] (Next Tab) -> virtual key 30 (ANSI Right Bracket)
+        // Cmd + Shift + [ (Previous Tab) -> virtual key 33 (ANSI Left Bracket)
+        let key: CGKeyCode = next ? 30 : 33
+        let source = CGEventSource(stateID: .hidSystemState)
+        if let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
+           let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false) {
+            down.flags = [.maskCommand, .maskShift]
+            up.flags = [.maskCommand, .maskShift]
             down.post(tap: .cghidEventTap)
             up.post(tap: .cghidEventTap)
         }

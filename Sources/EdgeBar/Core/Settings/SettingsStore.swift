@@ -37,6 +37,23 @@ public final class SettingsStore: ObservableObject {
                     }
                     decoded.version = 3
                 }
+                if decoded.version < 4 {
+                    // 1. Ensure Streaming & Video profile exists
+                    if !decoded.profiles.contains(where: { $0.name.lowercased().contains("streaming") || $0.name.lowercased().contains("video") }) {
+                        if let streamingProfile = SettingsModel.default.profiles.first(where: { $0.name.lowercased().contains("streaming") }) {
+                            decoded.profiles.insert(streamingProfile, at: 0)
+                        }
+                    }
+                    // 2. Upgrade Web Browsers profile to .tabSwitch
+                    for i in 0..<decoded.profiles.count {
+                        if decoded.profiles[i].name.lowercased().contains("browser") {
+                            decoded.profiles[i].bottomScrubMode = .tabSwitch
+                            decoded.profiles[i].bottomEdgeAction = .tabSwitch
+                            decoded.profiles[i].bundleIdentifier = "com.apple.Safari, com.google.Chrome, company.thebrowser.Browser, com.brave.Browser, org.mozilla.firefox, com.microsoft.edgemac, com.kagi.kagimacOS, com.operasoftware.Opera, com.vivaldi.Vivaldi"
+                        }
+                    }
+                    decoded.version = 4
+                }
                 self.settings = decoded
             } catch {
                 NSLog("[EdgeBar] Failed to decode settings, falling back to defaults: %@", error.localizedDescription)

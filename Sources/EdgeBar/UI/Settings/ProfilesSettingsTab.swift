@@ -124,7 +124,13 @@ public struct ProfilesSettingsTab: View {
                             HStack {
                                 Text("Bottom Strip Mode:")
                                     .font(.caption)
-                                Picker("", selection: $profile.bottomScrubMode) {
+                                Picker("", selection: Binding(
+                                    get: { profile.bottomScrubMode },
+                                    set: { newMode in
+                                        profile.bottomScrubMode = newMode
+                                        profile.bottomEdgeAction = mapScrubModeToEdgeAction(newMode)
+                                    }
+                                )) {
                                     ForEach(BottomScrubMode.allCases) { mode in
                                         Text(mode.rawValue).tag(mode)
                                     }
@@ -184,7 +190,7 @@ public struct ProfilesSettingsTab: View {
                         let newP = AppProfile(
                             name: newProfileName,
                             bundleIdentifier: newProfileBundleID,
-                            bottomEdgeAction: newProfileScrubMode == .timelineScrub ? .timelineScrub : (newProfileScrubMode == .pageScroll ? .scroll : .mediaTrack),
+                            bottomEdgeAction: mapScrubModeToEdgeAction(newProfileScrubMode),
                             bottomScrubMode: newProfileScrubMode
                         )
                         settingsStore.settings.profiles.append(newP)
@@ -196,6 +202,16 @@ public struct ProfilesSettingsTab: View {
             }
             .padding(20)
             .frame(width: 420)
+        }
+    }
+    
+    private func mapScrubModeToEdgeAction(_ mode: BottomScrubMode) -> EdgeAction {
+        switch mode {
+        case .tabSwitch: return .tabSwitch
+        case .videoSeek: return .videoSeek
+        case .timelineScrub: return .timelineScrub
+        case .mediaTrack: return .mediaTrack
+        case .pageScroll: return .scroll
         }
     }
     

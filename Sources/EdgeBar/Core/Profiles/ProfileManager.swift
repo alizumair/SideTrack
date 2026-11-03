@@ -50,35 +50,59 @@ public final class ProfileManager: ObservableObject {
         guard let app = NSWorkspace.shared.frontmostApplication else { return }
         let bundleID = app.bundleIdentifier ?? ""
         let appName = app.localizedName ?? ""
+        let windowTitle = getFrontmostWindowTitle(for: app.processIdentifier)
         
         self.frontmostBundleID = bundleID
         self.frontmostAppName = appName
         
-        // 1. Check Full-Screen / Game Mode bypass
-        var isFullScreen = false
-        if settings.gameModeEnabled {
-            isFullScreen = isAppFullScreen(app: app)
-        }
-        self.isGameModeActive = isFullScreen
+        let currentLower = bundleID.lowercased()
+        let nameLower = appName.lowercased()
+        let titleLower = windowTitle.lowercased()
         
-        // 2. Find matching profile
+        // 1. Find matching profile (checking bundle ID, app name, and active window title)
         var matched: AppProfile? = nil
         for profile in settings.profiles where profile.isEnabled {
             let identifiers = profile.bundleIdentifier
                 .split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
             
-            let currentLower = bundleID.lowercased()
-            let nameLower = appName.lowercased()
+            let matches = identifiers.contains { id in
+                guard !id.isEmpty else { return false }
+                return currentLower.contains(id) || nameLower.contains(id) || titleLower.contains(id)
+            }
             
-            if identifiers.contains(where: { currentLower.contains($0) || nameLower.contains($0) }) {
+            if matches {
                 matched = profile
                 break
             }
         }
         
+        // 2. Check Full-Screen / Game Mode bypass
+        // Never bypass when watching video in full screen!
+        var isFullScreen = false
+        let isStreamingOrMedia = matched?.bottomScrubMode == .videoSeek || matched?.bottomEdgeAction == .videoSeek
+        if settings.gameModeEnabled && !isStreamingOrMedia {
+            isFullScreen = isAppFullScreen(app: app)
+        }
+        self.isGameModeActive = isFullScreen
+        
         self.activeProfile = matched
         onProfileChanged?(matched, isFullScreen)
+    }
+    
+    private func getFrontmostWindowTitle(for pid: pid_t) -> String {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let windowInfoList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return ""
+        }
+        for win in windowInfoList {
+            guard let ownerPID = win[kCGWindowOwnerPID as String] as? pid_t, ownerPID == pid else { continue }
+            if let layer = win[kCGWindowLayer as String] as? Int, layer != 0 { continue }
+            if let title = win[kCGWindowName as String] as? String, !title.isEmpty {
+                return title
+            }
+        }
+        return ""
     }
     
     private func isAppFullScreen(app: NSRunningApplication) -> Bool {

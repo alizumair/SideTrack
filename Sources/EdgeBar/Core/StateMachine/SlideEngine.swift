@@ -9,6 +9,8 @@ public protocol SlideEngineDelegate: AnyObject {
     func slideEngineDidSkipMediaTrack(forward: Bool)
     func slideEngineDidScrubTimeline(forward: Bool)
     func slideEngineDidScrollPage(up: Bool)
+    func slideEngineDidSwitchTab(forward: Bool)
+    func slideEngineDidSeekVideo(forward: Bool)
     func slideEngineDidPlayPause()
     func slideEngineDidToggleMute()
     func slideEngineSlideStateChanged(isSliding: Bool)
@@ -24,6 +26,8 @@ public extension SlideEngineDelegate {
     func slideEngineDidAdjustMicGain(delta: Float, isPrecise: Bool) {}
     func slideEngineDidScrubTimeline(forward: Bool) {}
     func slideEngineDidScrollPage(up: Bool) {}
+    func slideEngineDidSwitchTab(forward: Bool) {}
+    func slideEngineDidSeekVideo(forward: Bool) {}
     func slideEngineDidStartCornerHold(corner: CornerType) {}
     func slideEngineDidTriggerScreenshot() {}
     func slideEngineDidTriggerScreenRecording() {}
@@ -78,6 +82,7 @@ public final class SlideEngine: CornerHoldManagerDelegate {
     private var ignoredTouchIDs: Set<Int32> = []
     private var lastTap: RecordedTap?
     private var hasFiredMediaSkipForCurrentSlide: Bool = false
+    private var accumulatedBottomDx: Float = 0.0
     private var isSlidingActive: Bool = false
     
     // Test hook for simulating modifier flags without depending on UI events
@@ -238,12 +243,11 @@ public final class SlideEngine: CornerHoldManagerDelegate {
                 }
                 
                 if absDx >= 0.020 && absDx >= absDy {
-                    if !hasFiredMediaSkipForCurrentSlide {
-                        handleBottomSwipe(forward: dx > 0)
-                        hasFiredMediaSkipForCurrentSlide = true
-                    }
+                    ProfileManager.shared.evaluateFrontmostApp(settings: settings)
                     phase = .sliding(touchID: touchID, zone: zone, currentX: contact.x, currentY: contact.y)
+                    accumulatedBottomDx = 0.0
                     startSlide()
+                    processBottomSlideDelta(deltaX: dx)
                 }
             }
             
@@ -304,12 +308,73 @@ public final class SlideEngine: CornerHoldManagerDelegate {
     
     private func handleBottomSwipe(forward: Bool) {
         switch effectiveBottomScrubMode {
+        case .tabSwitch:
+            delegate?.slideEngineDidSwitchTab(forward: forward)
+        case .videoSeek:
+            delegate?.slideEngineDidSeekVideo(forward: forward)
         case .timelineScrub:
             delegate?.slideEngineDidScrubTimeline(forward: forward)
         case .pageScroll:
             delegate?.slideEngineDidScrollPage(up: forward)
         case .mediaTrack:
             delegate?.slideEngineDidSkipMediaTrack(forward: forward)
+        }
+    }
+    
+    private func processBottomSlideDelta(deltaX: Float) {
+        accumulatedBottomDx += deltaX
+        
+        switch effectiveBottomScrubMode {
+        case .tabSwitch:
+            let stepThreshold: Float = 0.035
+            while accumulatedBottomDx >= stepThreshold {
+                delegate?.slideEngineDidSwitchTab(forward: true)
+                accumulatedBottomDx -= stepThreshold
+            }
+            while accumulatedBottomDx <= -stepThreshold {
+                delegate?.slideEngineDidSwitchTab(forward: false)
+                accumulatedBottomDx += stepThreshold
+            }
+            
+        case .videoSeek:
+            let stepThreshold: Float = 0.035
+            while accumulatedBottomDx >= stepThreshold {
+                delegate?.slideEngineDidSeekVideo(forward: true)
+                accumulatedBottomDx -= stepThreshold
+            }
+            while accumulatedBottomDx <= -stepThreshold {
+                delegate?.slideEngineDidSeekVideo(forward: false)
+                accumulatedBottomDx += stepThreshold
+            }
+            
+        case .mediaTrack:
+            let threshold: Float = 0.035
+            if !hasFiredMediaSkipForCurrentSlide && abs(accumulatedBottomDx) >= threshold {
+                delegate?.slideEngineDidSkipMediaTrack(forward: accumulatedBottomDx > 0)
+                hasFiredMediaSkipForCurrentSlide = true
+            }
+            
+        case .timelineScrub:
+            let stepThreshold: Float = 0.025
+            while accumulatedBottomDx >= stepThreshold {
+                delegate?.slideEngineDidScrubTimeline(forward: true)
+                accumulatedBottomDx -= stepThreshold
+            }
+            while accumulatedBottomDx <= -stepThreshold {
+                delegate?.slideEngineDidScrubTimeline(forward: false)
+                accumulatedBottomDx += stepThreshold
+            }
+            
+        case .pageScroll:
+            let stepThreshold: Float = 0.025
+            while accumulatedBottomDx >= stepThreshold {
+                delegate?.slideEngineDidScrollPage(up: false)
+                accumulatedBottomDx -= stepThreshold
+            }
+            while accumulatedBottomDx <= -stepThreshold {
+                delegate?.slideEngineDidScrollPage(up: true)
+                accumulatedBottomDx += stepThreshold
+            }
         }
     }
     
@@ -322,6 +387,7 @@ public final class SlideEngine: CornerHoldManagerDelegate {
     private func endSlide(cancelled: Bool) {
         isSlidingActive = false
         hasFiredMediaSkipForCurrentSlide = false
+        accumulatedBottomDx = 0.0
         delegate?.slideEngineSlideStateChanged(isSliding: false)
     }
     
@@ -358,7 +424,10 @@ public final class SlideEngine: CornerHoldManagerDelegate {
         case .right, .topRightCorner:
             executeAction(effectiveRightAction, deltaY: effectiveDeltaY, isPrecise: isPrecise)
             
-        case .bottom, .middle:
+        case .bottom:
+            processBottomSlideDelta(deltaX: deltaX)
+            
+        case .middle:
             break
         }
     }
@@ -373,6 +442,10 @@ public final class SlideEngine: CornerHoldManagerDelegate {
             delegate?.slideEngineDidAdjustKeyboardBacklight(delta: deltaY, isPrecise: isPrecise)
         case .micGain:
             delegate?.slideEngineDidAdjustMicGain(delta: deltaY, isPrecise: isPrecise)
+        case .tabSwitch:
+            delegate?.slideEngineDidSwitchTab(forward: deltaY > 0)
+        case .videoSeek:
+            delegate?.slideEngineDidSeekVideo(forward: deltaY > 0)
         case .scroll:
             delegate?.slideEngineDidScrollPage(up: deltaY > 0)
         case .timelineScrub:

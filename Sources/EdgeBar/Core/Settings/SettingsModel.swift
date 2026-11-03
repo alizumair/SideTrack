@@ -5,6 +5,8 @@ public enum EdgeAction: String, Codable, CaseIterable, Identifiable, Sendable {
     case volume = "System Volume"
     case keyboardBrightness = "Keyboard Backlight"
     case micGain = "Microphone Gain"
+    case tabSwitch = "Switch Tabs"
+    case videoSeek = "Forward / Rewind Video"
     case mediaTrack = "Media Track Skip"
     case scroll = "Page Scroll"
     case timelineScrub = "Timeline Frame Scrub"
@@ -51,8 +53,10 @@ public struct CustomScriptTrigger: Codable, Equatable, Sendable {
 }
 
 public enum BottomScrubMode: String, Codable, CaseIterable, Identifiable, Sendable {
-    case mediaTrack = "Media Track Skip"
+    case tabSwitch = "Switch Browser Tabs"
+    case videoSeek = "Forward / Rewind Video"
     case timelineScrub = "Timeline Frame Scrub"
+    case mediaTrack = "Media Track Skip"
     case pageScroll = "Page Scroll"
     
     public var id: String { rawValue }
@@ -97,7 +101,7 @@ public struct AppProfile: Codable, Identifiable, Equatable, Sendable {
 }
 
 public struct SettingsModel: Codable, Equatable, Sendable {
-    public static let currentVersion = 3
+    public static let currentVersion = 4
     public static let storageKey = "io.github.edgebar.settings.v1"
     
     public var version: Int = SettingsModel.currentVersion
@@ -164,17 +168,24 @@ public struct SettingsModel: Codable, Equatable, Sendable {
     public var profiles: [AppProfile] = [
         AppProfile(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID(),
-            name: "Video Editors",
-            bundleIdentifier: "com.apple.FinalCut, com.adobe.PremierePro, com.blackmagic-design.DaVinciResolve",
-            bottomEdgeAction: .timelineScrub,
-            bottomScrubMode: .timelineScrub
+            name: "Streaming & Video",
+            bundleIdentifier: "netflix, disney, prime video, primevideo, youtube, hulu, twitch, max, apple tv, com.apple.TV, com.apple.QuickTimePlayerX, com.colliderli.iina, org.videolan.vlc, com.amazon.aiv.AIVApp, com.firecore.infuse, tv.plex.desktop, com.stremio.stremio",
+            bottomEdgeAction: .videoSeek,
+            bottomScrubMode: .videoSeek
         ),
         AppProfile(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000002") ?? UUID(),
             name: "Web Browsers",
-            bundleIdentifier: "com.apple.Safari, com.google.Chrome, company.thebrowser.Browser, com.brave.Browser",
-            bottomEdgeAction: .scroll,
-            bottomScrubMode: .pageScroll
+            bundleIdentifier: "com.apple.Safari, com.google.Chrome, company.thebrowser.Browser, com.brave.Browser, org.mozilla.firefox, com.microsoft.edgemac, com.kagi.kagimacOS, com.operasoftware.Opera, com.vivaldi.Vivaldi",
+            bottomEdgeAction: .tabSwitch,
+            bottomScrubMode: .tabSwitch
+        ),
+        AppProfile(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000003") ?? UUID(),
+            name: "Video Editors",
+            bundleIdentifier: "com.apple.FinalCut, com.adobe.PremierePro, com.blackmagic-design.DaVinciResolve",
+            bottomEdgeAction: .timelineScrub,
+            bottomScrubMode: .timelineScrub
         )
     ]
     
